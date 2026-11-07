@@ -10,7 +10,27 @@ concurrency:
   group: sonar-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  configuration:
+    # Secrets cannot be read in a job-level if, so this job only reports whether a Sonar server is configured.
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_HOST_URL" ] && [ -n "$SONAR_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Sonar remoto no configurado (faltan SONAR_HOST_URL y SONAR_TOKEN); el análisis se ejecuta en local."
+          fi
   sonar:
+    # Skipped (not failed) until the repository has a reachable Sonar server, e.g. SonarCloud.
+    needs: configuration
+    if: needs.configuration.outputs.enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
