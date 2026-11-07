@@ -2,6 +2,7 @@ import {
   RouteConflictError,
   RouteIntegrityError,
   RouteNotFoundError,
+  RouteOrderNotFoundError,
   RoutePersistenceUnavailableError,
   RouteValidationError,
 } from '../../domain/route.errors.js';
@@ -10,10 +11,21 @@ const VALIDATION_CODES = new Set(['22004', '22007', '22008', '22023', '22P02']);
 // Payload conflict for a reused key, unfinished operation, lock wait, serialization or integrity rule.
 const CONFLICT_CODES = new Set(['P2002', '23505', '23503', '23514', '40001', '40P01', '55P03']);
 
-export function throwRoutePersistenceError(error: unknown): never {
+const PLANNING_CONFLICT_MESSAGE =
+  'La solicitud entra en conflicto con una planificación existente; si reutilizas la clave, envía los mismos datos.';
+
+export interface RoutePersistenceMessages {
+  readonly validation?: string;
+  readonly conflict?: string;
+  readonly unavailable?: string;
+}
+
+// Defaults keep the Sprint 02 planning messages; route operations pass their own wording.
+export function throwRoutePersistenceError(error: unknown, messages: RoutePersistenceMessages = {}): never {
   if (
     error instanceof RouteValidationError || error instanceof RouteNotFoundError || error instanceof RouteConflictError ||
-    error instanceof RoutePersistenceUnavailableError || error instanceof RouteIntegrityError
+    error instanceof RoutePersistenceUnavailableError || error instanceof RouteIntegrityError ||
+    error instanceof RouteOrderNotFoundError
   ) {
     throw error;
   }
@@ -27,13 +39,11 @@ export function throwRoutePersistenceError(error: unknown): never {
     (code): code is string => typeof code === 'string'
   );
   if (codes.some((code) => VALIDATION_CODES.has(code))) {
-    throw new RouteValidationError('Los parámetros de planificación no cumplen las reglas de la base.');
+    throw new RouteValidationError(messages.validation ?? 'Los parámetros de planificación no cumplen las reglas de la base.');
   }
   if (codes.some((code) => CONFLICT_CODES.has(code))) {
-    throw new RouteConflictError(
-      'La solicitud entra en conflicto con una planificación existente; si reutilizas la clave, envía los mismos datos.'
-    );
+    throw new RouteConflictError(messages.conflict ?? PLANNING_CONFLICT_MESSAGE);
   }
   // SQLSTATE, driver messages, SQL text and credentials never cross this boundary.
-  throw new RoutePersistenceUnavailableError();
+  throw new RoutePersistenceUnavailableError(messages.unavailable);
 }

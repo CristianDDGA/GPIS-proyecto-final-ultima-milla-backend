@@ -35,7 +35,7 @@ Decisiones:
 | Tarea | Estado | Resultado |
 |---|---|---|
 | S3-C01 | Hecho | Fragmento OpenAPI y este documento |
-| S3-C02 | Por hacer | |
+| S3-C02 | Hecho | Dominio `RouteOperations` (validación de UUID y lista completa sin repetidos; el resultado persistido debe coincidir con el comando), puerto `RouteOperationsRepository`, casos `MoveOrder` y `ReorderStops`, adaptador `PrismaRouteOperationsRepository` sobre `move_order`/`reorder_route` con lectura en la misma transacción |
 | S3-C03 | Por hacer | |
 | S3-C04 | Por hacer | |
 | S3-C05 | No ejecutado | |
