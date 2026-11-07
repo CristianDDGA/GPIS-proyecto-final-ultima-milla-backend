@@ -38,23 +38,39 @@ Idempotencia y concurrencia las da `generate_routes`: bloqueo por día, `FOR UPD
 
 ## Evidencia de aceptación individual
 
-Entorno de esta verificación: Linux x64, Node 22.23.4, PostgreSQL 16.15 local, dependencias de la instalación existente del backend (Prisma 7.10.1, Jest 30.5.2). El SQL es el original del paquete `.ci/database-package.zip` (SHA-256 `334adc39…48703` verificado), con 4 migraciones, 11 tablas y 2 vistas. La suite SQL del paquete pasó (integridad y concurrencia). Ver los hallazgos H-01 a H-03 sobre las diferencias con el entorno oficial.
+### Ejecución oficial (07/11/2026 00:05–00:09, America/Guayaquil)
+
+Entorno: Windows x64, Node 24.11.0, npm 11.6.1, Docker 29.7.2 (motor Linux). Código: commit `741427bba8cb37278631027caae9d5dc55a0d209` de esta rama, en un worktree limpio. Paquete `db-proyecto`: los 10 archivos coinciden por SHA-256 con `.ci/database-package.json`. Imagen PostgreSQL fijada por digest del manifiesto. Sin ajustes de permisos ni del SQL.
+
+| Comprobación | Resultado |
+|---|---|
+| `npm ci` (instalación limpia del lockfile) | exit 0 |
+| `db:verify`, `typecheck`, `typecheck:test`, `lint`, `build` | exit 0 |
+| Harness oficial: proyecto efímero `logistica_api_17404_1794028002890`, PostgreSQL 18 tmpfs, puerto localhost dinámico | SQL original: PASS integridad, capacidad, fecha/zona, transiciones, historial, idempotencia, rollback y privilegios. PASS concurrencia real al último cupo |
+| Suite Jest completa contra PostgreSQL 18 con el rol `logistica_app` | 4 suites, 66/66 aprobadas (32 de Routes, 34 heredadas), 23.7 s; harness exit 0; contenedor y red eliminados al terminar |
+| Newman 6 (colección Postman) sobre PostgreSQL 18 efímero, API S1 en 3100 y Routes en 3111 | 2 iteraciones, 54 solicitudes, 100 aserciones, 0 fallos; base temporal eliminada; base de desarrollo sin tocar |
+
+Los logs completos (`sprint02-pruebas.log`, `sprint02-postman.log`, `SPRINT_02_newman_resultado.json`) se conservan fuera del repositorio, en la carpeta de reportes.
+
+### Verificación previa durante el desarrollo
+
+Linux x64, Node 22.23.4, PostgreSQL 16.15 local con el mismo SQL original (ver H-01), dependencias de la instalación existente del backend.
 
 | Caso | Estado | Datos y esperado | Obtenido |
 |---|---|---|---|
-| S2-CP-001 | Aprobado (entorno local, ver H-01) | Dos zonas, dos fechas; cinco pendientes del mismo grupo y capacidad 4. Solo el día pedido, zonas separadas, rutas 4+1, sin duplicar pedidos; misma clave conserva el resultado; clave nueva sin pendientes no duplica | 32/32 pruebas Jest + Supertest + PostgreSQL. Rutas 4+1 (zona A) y 2 (zona B), orden por hora e ID, otro día sin rutas, una parada vigente por pedido. Variantes: 409 por payload distinto, plan vacío, capacidad 1, zona inactiva excluida, dos planificaciones simultáneas (una crea 3 rutas, la otra 0), filtros AND, paginación estable, 404, 9 consultas y 11 cuerpos inválidos con 400, JSON mal formado 400, cuerpo > 32 KB 413, base inaccesible 503 sin detalles |
+| S2-CP-001 | Aprobado (PostgreSQL 18 oficial y verificación previa) | Dos zonas, dos fechas; cinco pendientes del mismo grupo y capacidad 4. Solo el día pedido, zonas separadas, rutas 4+1, sin duplicar pedidos; misma clave conserva el resultado; clave nueva sin pendientes no duplica | 32/32 pruebas Jest + Supertest + PostgreSQL. Rutas 4+1 (zona A) y 2 (zona B), orden por hora e ID, otro día sin rutas, una parada vigente por pedido. Variantes: 409 por payload distinto, plan vacío, capacidad 1, zona inactiva excluida, dos planificaciones simultáneas (una crea 3 rutas, la otra 0), filtros AND, paginación estable, 404, 9 consultas y 11 cuerpos inválidos con 400, JSON mal formado 400, cuerpo > 32 KB 413, base inaccesible 503 sin detalles |
 | S2-CP-008 | Aprobado (estático local) | TypeScript estricto, lint, build y dependencias | `typecheck`, `typecheck:test`, `eslint .` y `build`: exit 0. Imports de Domain/Application solo internos; Presentation no importa infraestructura; sin imports de otros módulos. OpenAPI 3.1 parseado: 3 operaciones, 40 referencias resueltas. `git diff --check` sin errores |
 | Regresión | Aprobado (entorno local) | Suites heredadas S1 sin cambios | Suite completa: 4 suites, 66 pruebas (34 heredadas + 32 nuevas) |
 | Prueba manual HTTP | Aprobado | Servidor compilado `dist/bootstrap/sprint02/routes.server.js` en 3011 y API S1 en 3000 contra la misma base | 15 peticiones manuales y colección Postman de 27 solicitudes / 50 aserciones, ejecutada dos veces seguidas: 0 fallos |
 
-No se ejecutaron SonarQube, CI remoto ni el harness Docker oficial en esta máquina. No se acredita revisión humana.
+No se ejecutaron SonarQube ni CI remoto. No se acredita revisión humana ni aceptación formal del sprint.
 
 ## Hallazgos
 
-- **H-01 · Entorno, abierto hasta repetir en el oficial.** La verificación usó PostgreSQL 16 en lugar de `postgres:18.6-alpine`, porque esta máquina no tiene Docker. En PG16 los triggers diferidos `*_consistency` corren con el rol de la sesión al confirmar, y `logistica_app` no puede ejecutar `assert_order`/`assert_route`. En PG17 y posteriores corren con el rol que encoló el evento. Para imitar esa semántica, **solo en la base local temporal** se marcó `dispatch_consistency()` como `SECURITY DEFINER`. No se dieron permisos de tabla: se comprobó que `INSERT` directo sigue denegado. El paquete SQL y los permisos del repositorio no cambiaron. Hay que repetir con el harness oficial (comando abajo) para acreditar el entorno canónico.
+- **H-01 · Entorno de desarrollo, cerrado.** La ejecución oficial con `postgres:18.6-alpine` y los permisos originales aprobó todo sin ajustes. Durante el desarrollo, la verificación previa usó PostgreSQL 16 en lugar de `postgres:18.6-alpine`, porque esa máquina no tenía Docker. En PG16 los triggers diferidos `*_consistency` corren con el rol de la sesión al confirmar, y `logistica_app` no puede ejecutar `assert_order`/`assert_route`. En PG17 y posteriores corren con el rol que encoló el evento. Para imitar esa semántica, **solo en la base local temporal** se marcó `dispatch_consistency()` como `SECURITY DEFINER`. No se dieron permisos de tabla: se comprobó que `INSERT` directo sigue denegado. El paquete SQL y los permisos del repositorio no cambiaron.
 - **H-02 · CORS para el frontend, previo y fuera de alcance.** `createApp` (común) responde `Access-Control-Allow-Headers: Content-Type,Authorization`. Un navegador no podrá enviar `Idempotency-Key` a `POST /route-plans` hasta que se agregue esa cabecera en el bootstrap común. No afecta a Postman, Supertest ni a la entrega de backend. Corresponde a la integración posterior.
 - **H-03 · Alcance de la idempotencia.** `generate_routes` registra la clave por día (`plan:<fecha>`). La misma clave con otra capacidad para el mismo día da 409. La misma clave con otra fecha se trata como una operación nueva. `logistica_app` no tiene SELECT sobre `operation_requests` y no se modifican SQL ni permisos, así que el contrato documenta la regla tal como la aplica la base.
-- **Instalación.** No se ejecutó `npm ci` porque no había red de paquetes. Se reutilizó la instalación existente. Jest 30 resuelve módulos con un binario nativo y solo estaba el de Windows, así que en esta máquina se usó un resolvedor de reemplazo fuera del repositorio. En Windows con `npm ci` no hace falta.
+- **Instalación.** En la verificación previa no hubo red de paquetes: se reutilizó la instalación existente y un resolvedor de Jest de reemplazo fuera del repositorio. En la ejecución oficial, `npm ci` instaló el lockfile limpio y no hizo falta nada de eso.
 
 ## Reproducción
 
