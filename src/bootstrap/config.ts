@@ -6,7 +6,7 @@ export interface AppConfig {
 
 export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
   const port = Number(environment.PORT ?? '3000');
-  const webOrigin = environment.WEB_ORIGIN ?? 'http://localhost:5173';
+  const webOrigin = environment.WEB_ORIGIN ?? 'http://127.0.0.1:5173';
 
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error('PORT debe ser un entero entre 1 y 65535.');

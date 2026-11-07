@@ -16,5 +16,4 @@ export default {
     ],
   },
   verbose: true,
-  forceExit: true,
 };

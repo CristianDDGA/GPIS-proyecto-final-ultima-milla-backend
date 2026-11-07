@@ -1,11 +1,15 @@
-import { Zone } from '../../domain/zone.entity.js';
+import { randomUUID } from 'node:crypto';
+import { Zone, type NewZone } from '../../domain/zone.entity.js';
 import { ZoneConflictError } from '../../domain/zone.errors.js';
 import type { ZoneRepository } from '../../application/ports/zone.repository.port.js';
 
 export class InMemoryZoneRepository implements ZoneRepository {
   private readonly zones = new Map<string, Zone>();
 
-  async create(zone: Zone): Promise<Zone> {
+  async create(input: NewZone): Promise<Zone> {
+    const prepared = Zone.prepare(input);
+    const now = new Date();
+    const zone = Zone.create({ ...prepared, id: randomUUID(), createdAt: now, updatedAt: now });
     for (const existing of this.zones.values()) {
       if (existing.name.toLowerCase() === zone.name.toLowerCase()) {
         throw new ZoneConflictError(`Ya existe una zona registrada con el nombre '${zone.name}'.`);

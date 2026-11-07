@@ -10,7 +10,7 @@ export class CreateZoneUseCase {
   constructor(private readonly zoneRepository: ZoneRepository) {}
 
   async execute(command: CreateZoneCommand): Promise<Zone> {
-    const zone = Zone.create({ name: command.name });
+    const zone = Zone.prepare({ name: command.name });
 
     const existingZone = await this.zoneRepository.findByName(zone.name);
     if (existingZone !== null) {

@@ -7,3 +7,7 @@ coverage/
 *.log
 .scannerwork/
 .sonar/
+
+reports/
+.scannerwork/
+.sonar/

@@ -1,0 +1,47 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Check application types
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: Unit regressions
+        run: npm run test:unit
+      - name: Check test types
+        run: npm run typecheck:test
+      - name: HTTP regressions (in memory; PostgreSQL acceptance runs separately)
+        run: npm run test:integration
+      - name: Verify canonical database artifact
+        run: node scripts/verify-database-artifact.mjs
+      - name: Extract unchanged database package
+        run: python3 -m zipfile -e .ci/database-package.zip "$RUNNER_TEMP/sprint-database"
+      - name: Real PostgreSQL integration and SQL invariants
+        run: npm run test:integration:postgres
+        env:
+          DATABASE_PACKAGE_DIR: ${{ runner.temp }}/sprint-database
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: postgres-integration-evidence
+          path: reports/postgres.json
+          if-no-files-found: error

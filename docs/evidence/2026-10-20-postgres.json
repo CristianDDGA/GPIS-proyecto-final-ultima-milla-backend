@@ -1,0 +1,49 @@
+{
+  "recorded_at": "2026-10-20T18:47:01-05:00",
+  "timezone": "America/Guayaquil",
+  "backend_commit": "e1c7624dc86d3de1bb25c529954ae28c6af50529",
+  "command": "npm run test:integration:postgres",
+  "environment": {
+    "node": "24.19.0",
+    "npm": "11.12.1",
+    "postgres_image": "postgres:18.6-alpine",
+    "image_digest": "postgres@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873",
+    "docker_engine": "29.0.1",
+    "compose": "2.40.3",
+    "database": "logistica_test",
+    "storage": "tmpfs",
+    "api_role": "logistica_app",
+    "project": "logistica_api_24340_1792539805741"
+  },
+  "exit_code": 0,
+  "jest": {
+    "suites_passed": 3,
+    "tests_passed": 34,
+    "tests_failed": 0,
+    "tests_skipped": 0,
+    "duration_seconds": 23.247
+  },
+  "sql_results": [
+    "PASS: integridad, capacidad, fecha/zona, transiciones, historial, idempotencia, rollback y privilegios",
+    "PASS: concurrencia real al ultimo cupo, sin perdida ni sobrecapacidad"
+  ],
+  "cleanup_verified": true,
+  "cases_passed": [
+    "S1-CP-003",
+    "S1-CP-005",
+    "S1-CP-009",
+    "S1-CP-010"
+  ],
+  "database_package_sha256": {
+    "compose.test.yaml": "2e0e518c3387b9ad8ebb54fc7514d2962aafec7d1421555d8e39ac0372530145",
+    "database/init/00-bootstrap.sh": "94d55f9bc9694ab3b2dee113e9b8393b9a81b28129d18cd49c875499d9173cf5",
+    "database/migrations/001_schema.sql": "73e9787acbbc937e49140eea20bbc094b7286844f4e7bb6b0ab7369b01050b19",
+    "database/migrations/002_integrity.sql": "5394f9157bbc10106665dce799e76d8ce7217d6d99a469f16dd547016269caf9",
+    "database/migrations/003_commands.sql": "408d8cb2dd349ce8024bca997676feb11ba81f5a9b55790943573666e26eb787",
+    "database/migrations/004_permissions.sql": "0fd949bfeac3080409353f54c3614bd601f34e6544693330305440cfab1add03",
+    "database/scripts/migrate.sh": "75f606a3b834727c94f183895a58bd04766f2becd24862dadbe53c68cdda515c",
+    "database/seeds/demo.sql": "1dafe59880ac8048ff8d6efef562ce1c0f1726766fbfa058f9231444fd6893b7",
+    "database/tests/integration.sql": "51d4f4cfa28738916ccab505d3131d38c350731f10d4115c004bff660c1c0016",
+    "database/tests/run.sh": "99999382492d1be28942306e662f635ee3955dbdac8ccbec90df9237c416ff05"
+  }
+}

@@ -20,7 +20,8 @@
     "db:introspect": "node --env-file-if-exists=.env node_modules/prisma/build/index.js db pull",
     "test:integration:postgres": "node --env-file-if-exists=.env scripts/run-postgres-integration.mjs",
     "postinstall": "prisma generate",
-    "db:verify": "node --env-file-if-exists=.env scripts/verify-database-package.mjs"
+    "db:verify": "node --env-file-if-exists=.env scripts/verify-database-package.mjs",
+    "test:unit": "node --import=tsx --test test/unit/*.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",

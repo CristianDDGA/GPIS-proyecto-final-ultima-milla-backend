@@ -1,0 +1,262 @@
+{
+  "recordedAt": "2026-10-21T03:06:55.988302+00:00",
+  "serverVersion": "26.8.0.126808",
+  "scannerImage": "sonarsource/sonar-scanner-cli@sha256:a3f4215076706c95a17a68c19322ee916e40a3acd081a8c1a1e839e0194afa57",
+  "scope": "src and configured test directories; not a dependency or infrastructure security audit",
+  "projects": [
+    {
+      "project": "gpis-ultima-milla-api",
+      "gate": {
+        "projectStatus": {
+          "status": "OK",
+          "conditions": [
+            {
+              "status": "OK",
+              "metricKey": "new_violations",
+              "comparator": "GT",
+              "errorThreshold": "0",
+              "actualValue": "0"
+            }
+          ],
+          "ignoredConditions": false,
+          "period": {
+            "mode": "PREVIOUS_VERSION",
+            "date": "2026-10-21T00:07:36+0000"
+          },
+          "caycStatus": "compliant"
+        }
+      },
+      "issues": {
+        "total": 0,
+        "p": 1,
+        "ps": 100,
+        "paging": {
+          "pageIndex": 1,
+          "pageSize": 100,
+          "total": 0
+        },
+        "effortTotal": 0,
+        "issues": [],
+        "components": [],
+        "facets": []
+      },
+      "hotspots": {
+        "paging": {
+          "pageIndex": 1,
+          "pageSize": 100,
+          "total": 0
+        },
+        "hotspots": [],
+        "components": []
+      },
+      "analyses": {
+        "paging": {
+          "pageIndex": 1,
+          "pageSize": 1,
+          "total": 2
+        },
+        "analyses": [
+          {
+            "key": "f67262d6-7247-44b1-8996-e919a8499367",
+            "date": "2026-10-21T00:20:10+0000",
+            "events": [
+              {
+                "key": "fd1d5c42-fdf2-4753-906d-3a2c70ef4f80",
+                "category": "VERSION",
+                "name": "0.1.0"
+              }
+            ],
+            "projectVersion": "0.1.0",
+            "manualNewCodePeriodBaseline": false,
+            "revision": "2f19687572c86083cdb7f4a69647222e6677fa36",
+            "detectedCI": "undetected"
+          }
+        ]
+      },
+      "measures": {
+        "component": {
+          "key": "gpis-ultima-milla-api",
+          "name": "GPIS Ultima Milla Backend",
+          "qualifier": "TRK",
+          "measures": [
+            {
+              "metric": "coverage",
+              "value": "0.0",
+              "bestValue": false
+            },
+            {
+              "metric": "bugs",
+              "value": "0",
+              "bestValue": true
+            },
+            {
+              "metric": "code_smells",
+              "value": "0",
+              "bestValue": true
+            },
+            {
+              "metric": "duplicated_lines_density",
+              "value": "0.0",
+              "bestValue": true
+            },
+            {
+              "metric": "ncloc",
+              "value": "1130"
+            },
+            {
+              "metric": "vulnerabilities",
+              "value": "0",
+              "bestValue": true
+            },
+            {
+              "metric": "security_hotspots",
+              "value": "0",
+              "bestValue": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "project": "gpis-ultima-milla-web",
+      "gate": {
+        "projectStatus": {
+          "status": "OK",
+          "conditions": [
+            {
+              "status": "OK",
+              "metricKey": "new_coverage",
+              "comparator": "LT",
+              "errorThreshold": "80",
+              "actualValue": "80.7"
+            },
+            {
+              "status": "OK",
+              "metricKey": "new_duplicated_lines_density",
+              "comparator": "GT",
+              "errorThreshold": "3",
+              "actualValue": "0.0"
+            },
+            {
+              "status": "OK",
+              "metricKey": "new_violations",
+              "comparator": "GT",
+              "errorThreshold": "0",
+              "actualValue": "0"
+            }
+          ],
+          "ignoredConditions": false,
+          "period": {
+            "mode": "PREVIOUS_VERSION",
+            "date": "2026-10-21T00:10:36+0000"
+          },
+          "caycStatus": "compliant"
+        }
+      },
+      "issues": {
+        "total": 0,
+        "p": 1,
+        "ps": 100,
+        "paging": {
+          "pageIndex": 1,
+          "pageSize": 100,
+          "total": 0
+        },
+        "effortTotal": 0,
+        "issues": [],
+        "components": [],
+        "facets": []
+      },
+      "hotspots": {
+        "paging": {
+          "pageIndex": 1,
+          "pageSize": 100,
+          "total": 0
+        },
+        "hotspots": [],
+        "components": []
+      },
+      "analyses": {
+        "paging": {
+          "pageIndex": 1,
+          "pageSize": 1,
+          "total": 5
+        },
+        "analyses": [
+          {
+            "key": "673de9e7-4144-4ec5-befa-324b1661e0ff",
+            "date": "2026-10-21T00:29:40+0000",
+            "events": [
+              {
+                "key": "3f46361f-d698-4a57-b87a-9d8a460f3a64",
+                "category": "QUALITY_GATE",
+                "name": "Passed",
+                "description": ""
+              },
+              {
+                "key": "95ed144b-ae95-41d9-ad94-999d03c8d0b5",
+                "category": "VERSION",
+                "name": "not provided"
+              }
+            ],
+            "projectVersion": "not provided",
+            "manualNewCodePeriodBaseline": false,
+            "revision": "0dccbae6861fd25c786e5a5aa654a124e751c8e1",
+            "detectedCI": "undetected"
+          }
+        ]
+      },
+      "measures": {
+        "component": {
+          "key": "gpis-ultima-milla-web",
+          "name": "GPIS Ultima Milla Web",
+          "qualifier": "TRK",
+          "measures": [
+            {
+              "metric": "coverage",
+              "value": "90.5",
+              "bestValue": false
+            },
+            {
+              "metric": "bugs",
+              "value": "0",
+              "bestValue": true
+            },
+            {
+              "metric": "code_smells",
+              "value": "0",
+              "bestValue": true
+            },
+            {
+              "metric": "duplicated_lines_density",
+              "value": "0.0",
+              "bestValue": true
+            },
+            {
+              "metric": "ncloc",
+              "value": "2196"
+            },
+            {
+              "metric": "new_coverage",
+              "period": {
+                "index": 1,
+                "value": "80.7",
+                "bestValue": false
+              }
+            },
+            {
+              "metric": "vulnerabilities",
+              "value": "0",
+              "bestValue": true
+            },
+            {
+              "metric": "security_hotspots",
+              "value": "0",
+              "bestValue": true
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

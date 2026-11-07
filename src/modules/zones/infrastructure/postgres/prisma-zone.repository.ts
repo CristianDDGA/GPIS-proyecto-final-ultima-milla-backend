@@ -1,4 +1,4 @@
-import { Zone } from '../../domain/zone.entity.js';
+import { Zone, type NewZone } from '../../domain/zone.entity.js';
 import { ZoneConflictError, PersistenceUnavailableError } from '../../domain/zone.errors.js';
 import type { ZoneRepository } from '../../application/ports/zone.repository.port.js';
 import type { PrismaDatabaseClient, PrismaQueryClient } from '../../../../infrastructure/postgres/prisma-client.port.js';
@@ -18,7 +18,7 @@ function mapZone(record: PrismaZoneRecord): Zone {
 export class PrismaZoneRepository implements ZoneRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
-  async create(zone: Zone): Promise<Zone> {
+  async create(zone: NewZone): Promise<Zone> {
     try {
       return await this.prisma.$transaction(async (client) => {
         const ids = await client.$queryRaw<readonly {id:string}[]>`SELECT logistica.create_zone(${zone.name}::text) AS id`;

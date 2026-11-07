@@ -1,0 +1,37 @@
+name: Sonar quality gate
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [develop, main]
+permissions:
+  contents: read
+concurrency:
+  group: sonar-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  sonar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        env:
+          CYPRESS_INSTALL_BINARY: "0"
+      - name: Validate server configuration
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: test -n "$SONAR_HOST_URL" && test -n "$SONAR_TOKEN"
+      - name: Analyze and wait for quality gate
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          docker run --rm -e SONAR_HOST_URL -e SONAR_TOKEN --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/usr/src" sonarsource/sonar-scanner-cli@sha256:a3f4215076706c95a17a68c19322ee916e40a3acd081a8c1a1e839e0194afa57 "-Dsonar.scm.revision=$GITHUB_SHA" -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=180

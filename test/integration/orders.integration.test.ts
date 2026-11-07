@@ -24,7 +24,7 @@ describe('Suite de Integración API / Persistencia - Pedidos', () => {
     });
 
     // Zona válida base para las pruebas de pedidos
-    validZone = await zoneRepository.create(Zone.create({ name: 'Centro' }));
+    validZone = await zoneRepository.create(Zone.prepare({ name: 'Centro' }));
   });
 
   afterAll(closeIntegrationDatabase);
@@ -236,8 +236,8 @@ describe('Suite de Integración API / Persistencia - Pedidos', () => {
         validZone = centro;
       } else {
         // 1. Crear las 3 zonas de la fixture: Centro (ya creada), Norte y Sur
-        const zoneNorte = await zoneRepository.create(Zone.create({ name: 'Norte' }));
-        const zoneSur = await zoneRepository.create(Zone.create({ name: 'Sur' }));
+        const zoneNorte = await zoneRepository.create(Zone.prepare({ name: 'Norte' }));
+        const zoneSur = await zoneRepository.create(Zone.prepare({ name: 'Sur' }));
 
         const zones = [validZone, zoneNorte, zoneSur];
         const dates = ['2026-10-20', '2026-10-26'];

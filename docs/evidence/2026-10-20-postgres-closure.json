@@ -1,0 +1,188 @@
+{
+  "recordedAt": "2026-10-21T03:06:55.988302+00:00",
+  "backendCommit": "b6d2eb1f07f42bc30a0a5f3df15b7847054773d2",
+  "command": "npm run test:integration:postgres",
+  "success": true,
+  "total": 34,
+  "passed": 34,
+  "failed": 0,
+  "pending": 0,
+  "startTime": 1792542486066,
+  "results": [
+    {
+      "name": "orders.integration.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada debe registrar y recuperar un pedido válido con código 201, estado pendiente y datos íntegros",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR rechaza el campo ausente zoneId sin persistir",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR rechaza el campo ausente deliveryAddress sin persistir",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR rechaza el campo ausente deliveryDate sin persistir",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR rechaza el campo ausente deliveryTime sin persistir",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR rechaza cuerpo JSON inválido null sin persistir",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR rechaza cuerpo JSON inválido [] sin persistir",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR rechaza cuerpo JSON inválido { sin persistir",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR debe rechazar cuando la dirección de entrega está vacía",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR debe rechazar cuando la fecha de entrega tiene formato inválido",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR debe rechazar cuando la fecha de entrega no existe en el calendario",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR debe rechazar cuando la hora de entrega tiene formato inválido",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Variantes inválidas rechazadas con 400 y VALIDATION_ERROR debe rechazar cuando el zoneId no es un UUID válido",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-005 · Pedidos: registro y validación integrada Zona inexistente rechazada con 404 y ZONE_NOT_FOUND debe rechazar con 404 cuando la zona no existe en la persistencia",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-010 · Recepción de pedidos para hoy rechaza una entrega pasada con VALIDATION_ERROR sin insertar",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-010 · Recepción de pedidos para hoy rechaza una zona inactiva sin insertar",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-010 · Recepción de pedidos para hoy debe registrar y persistir un pedido con entrega para el día de hoy (America/Guayaquil)",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-009 · Recuperación y filtros de pedidos con Fixture representativa conserva creación y entrega por separado e ignora metadatos del cliente",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-009 · Recuperación y filtros de pedidos con Fixture representativa rechaza filtro mal formado deliveryDate=2026-02-31",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-009 · Recuperación y filtros de pedidos con Fixture representativa rechaza filtro mal formado deliveryDate=",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-009 · Recuperación y filtros de pedidos con Fixture representativa rechaza filtro mal formado zoneId=invalido",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-009 · Recuperación y filtros de pedidos con Fixture representativa rechaza filtro mal formado deliveryDate=2026-10-20&deliveryDate=2026-10-26",
+          "status": "passed"
+        },
+        {
+          "title": "Suite de Integración API / Persistencia - Pedidos S1-CP-009 · Recuperación y filtros de pedidos con Fixture representativa debe cumplir con los resultados esperados de la fixture: 12 sin filtro, 6 por fecha, 4 por zona, 2 por fecha+zona y 0 sin coincidencia",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "name": "zones.integration.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Registro de zona válida debe registrar y persistir una zona válida con código 201 y metadatos correctos",
+          "status": "passed"
+        },
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Validación de entradas inválidas debe rechazar un nombre de zona vacío con código 400 y VALIDATION_ERROR",
+          "status": "passed"
+        },
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Validación de entradas inválidas debe rechazar un nombre de zona compuesto únicamente por espacios en blanco",
+          "status": "passed"
+        },
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Validación de entradas inválidas debe rechazar un payload sin el campo name con código 400 y VALIDATION_ERROR",
+          "status": "passed"
+        },
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Validación de entradas inválidas debe rechazar un campo name que no sea texto con código 400 y VALIDATION_ERROR",
+          "status": "passed"
+        },
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Conflictos y casos de consulta debe rechazar el registro de una zona con nombre duplicado con código 409 y DATA_CONFLICT",
+          "status": "passed"
+        },
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Conflictos y casos de consulta debe responder 404 y ZONE_NOT_FOUND cuando se consulta una zona inexistente",
+          "status": "passed"
+        },
+        {
+          "title": "S1-CP-003 · Zonas: registro y validación integrada Conflictos y casos de consulta debe responder 400 y VALIDATION_ERROR cuando se consulta con un identificador que no es UUID",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "name": "health.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "title": "Integration Test Harness - Health Check GET /health returns 200 with status ok",
+          "status": "passed"
+        },
+        {
+          "title": "CORS con la configuración local predeterminada acepta el preflight del origen que usa Vite",
+          "status": "passed"
+        },
+        {
+          "title": "CORS con la configuración local predeterminada rechaza el preflight de un origen diferente sin wildcard",
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "sql": [
+    "PASS: integridad, capacidad, fecha/zona, transiciones, historial, idempotencia, rollback y privilegios",
+    "PASS: concurrencia real al ultimo cupo, sin perdida ni sobrecapacidad"
+  ],
+  "databaseManifest": {
+    "source": "db-proyecto canonical Sprint 1 package",
+    "sha256": "334adc39ffc1c0c7771a9565d4c1b0469c9c63f184d3f2c3b88a09be34e48703",
+    "files": {
+      "compose.test.yaml": "2e0e518c3387b9ad8ebb54fc7514d2962aafec7d1421555d8e39ac0372530145",
+      "database/init/00-bootstrap.sh": "94d55f9bc9694ab3b2dee113e9b8393b9a81b28129d18cd49c875499d9173cf5",
+      "database/migrations/001_schema.sql": "73e9787acbbc937e49140eea20bbc094b7286844f4e7bb6b0ab7369b01050b19",
+      "database/migrations/002_integrity.sql": "5394f9157bbc10106665dce799e76d8ce7217d6d99a469f16dd547016269caf9",
+      "database/migrations/003_commands.sql": "408d8cb2dd349ce8024bca997676feb11ba81f5a9b55790943573666e26eb787",
+      "database/migrations/004_permissions.sql": "0fd949bfeac3080409353f54c3614bd601f34e6544693330305440cfab1add03",
+      "database/scripts/migrate.sh": "75f606a3b834727c94f183895a58bd04766f2becd24862dadbe53c68cdda515c",
+      "database/seeds/demo.sql": "1dafe59880ac8048ff8d6efef562ce1c0f1726766fbfa058f9231444fd6893b7",
+      "database/tests/integration.sql": "51d4f4cfa28738916ccab505d3131d38c350731f10d4115c004bff660c1c0016",
+      "database/tests/run.sh": "99999382492d1be28942306e662f635ee3955dbdac8ccbec90df9237c416ff05"
+    },
+    "postgresImage": "postgres@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"
+  }
+}
