@@ -8,9 +8,7 @@ import { PrismaCourierRepository } from '../../modules/couriers/infrastructure/p
 import { PrismaAssignmentRepository } from '../../modules/couriers/infrastructure/postgres/prisma-assignment.repository.js';
 export function createCouriersApp(dependencies: { couriers: CourierRepository; assignments: AssignmentRepository; webOrigin: string }) {
   const module = createCouriersModule(dependencies);
-  const app = createApp({ webOrigin: dependencies.webOrigin, routers: [{ basePath: '/', router: module.router }] });
-  app.use(module.errorHandler);
-  return app;
+  return createApp({ webOrigin: dependencies.webOrigin, routers: [{ basePath: '/', router: module.router }], errorHandlers: [module.errorHandler] });
 }
 export async function startCouriersServer(environment: NodeJS.ProcessEnv = process.env) {
   const rawPort = environment['S2_COURIERS_PORT'] ?? '3012';
