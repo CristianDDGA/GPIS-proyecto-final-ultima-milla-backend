@@ -1,6 +1,6 @@
 # API de logística de última milla
 
-Backend independiente en Node 24.11.0, npm 11, TypeScript y Express. Prisma Client/CLI y el adaptador PostgreSQL quedan fijados en 7.10.1. El frontend consume HTTP y mantiene su propio repositorio.
+Backend independiente en Node 24.22.2, npm 11, TypeScript y Express. Prisma Client/CLI y el adaptador PostgreSQL quedan fijados en 7.10.1. El frontend consume HTTP y mantiene su propio repositorio.
 
 ## Base de datos original
 
@@ -10,7 +10,7 @@ Sigue primero `LEEME_PRIMERO.txt` y `README.md` de ese paquete. Genera las crede
 
 ## Configuración del backend
 
-1. Usa Node 24.11.0 y npm 11.
+1. Usa Node 24.22.2 y npm 11. Si vienes de una versión anterior, sigue la guía [Actualizar el entorno](docs/workflow/ACTUALIZAR_ENTORNO.md).
 2. Crea el `.env` de esta API a partir de su `.env.example` y completa `DATABASE_URL` con el rol `logistica_app`, `APP_PASSWORD` y el puerto local del paquete. No uses administrador en la API ni compartas las credenciales.
 3. Para las pruebas, configura `DATABASE_PACKAGE_DIR` con la carpeta del paquete de base de datos descomprimido. Si está junto al backend y se llama `db-proyecto`, usa `DATABASE_PACKAGE_DIR=../db-proyecto`. También puedes indicar una ruta absoluta con barras `/`, por ejemplo `C:/Proyectos/db-proyecto`. Cada integrante ajusta esta ruta en su `.env` local; no copies la carpeta al backend. Esta variable solo se usa para comprobar el paquete y ejecutar las pruebas, no para arrancar la API.
 4. Instala y comprueba:
@@ -54,7 +54,7 @@ El segundo comando exige `DATABASE_PACKAGE_DIR` y comprueba que existan los diez
 
 El lanzador utiliza el `compose.test.yaml` externo con nombre de proyecto único, tmpfs y un puerto efímero en localhost. No toca la base `logistica` de desarrollo. Ejecuta los scripts SQL originales, usa sus fixtures y corre los mismos archivos Jest/Supertest con los adaptadores reales y el rol restringido. El reset administrativo se limita al contenedor temporal de esa ejecución, comprobando sus etiquetas. Al terminar elimina únicamente sus contenedores/red y el directorio temporal propio. Conserva intactos el paquete externo y los volúmenes de desarrollo.
 
-Las verificaciones se ejecutan localmente por integrante, con Node 24.11.0, Docker y el paquete de base de datos externo. El workflow anterior se retiró porque dependía de una copia del paquete dentro del repositorio. La revisión actual incorpora CI para checks independientes de ese paquete. Los resultados locales no se presentan como CI aprobado. SonarQube también se ejecuta localmente. Una automatización futura deberá definir cómo obtener el paquete externo, sin duplicar ni mantener otra versión de la base en este backend.
+Las verificaciones se ejecutan localmente por integrante, con Node 24.22.2, Docker y el paquete de base de datos externo. El workflow anterior se retiró porque dependía de una copia del paquete dentro del repositorio. La revisión actual incorpora CI para checks independientes de ese paquete. Los resultados locales no se presentan como CI aprobado. SonarQube también se ejecuta localmente. Una automatización futura deberá definir cómo obtener el paquete externo, sin duplicar ni mantener otra versión de la base en este backend.
 
 El runner original de concurrencia abre conexiones administrativas adicionales: se les pasa `PGOPTIONS=-csearch_path=logistica,pg_catalog` por sesión para resolver sus tablas. No se modifica el SQL del paquete ni la configuración persistente de roles.
 
