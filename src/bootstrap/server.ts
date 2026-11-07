@@ -15,7 +15,7 @@ if (database) {
 const app = database ? createPersistedApp(database, config.webOrigin) : createApp({ webOrigin: config.webOrigin });
 const server = app.listen(config.port, () => {
   process.stdout.write(`API escuchando en http://localhost:${config.port}\n`);
-  process.stdout.write(database ? 'PostgreSQL conectado: zonas y pedidos habilitados.\n' : 'Sin DATABASE_URL: solo /health habilitado.\n');
+  process.stdout.write(database ? 'PostgreSQL conectado: zonas, pedidos, rutas y repartidores habilitados.\n' : 'Sin DATABASE_URL: solo /health habilitado.\n');
 });
 for (const signal of ['SIGINT','SIGTERM'] as const) {
   process.once(signal, () => {

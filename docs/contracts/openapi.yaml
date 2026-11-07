@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: GPIS · API de logística de última milla
-  version: 0.1.0
+  version: 0.2.0
   description: >-
     Contrato canónico del Sprint 01, mantenido por Cristian. Zonas corresponde a Jhon. Propuesta para revisión
     del equipo. Con DATABASE_URL configurada, bootstrap comparte un cliente Prisma con rol logistica_app entre
@@ -14,6 +14,8 @@ tags:
   - name: Health
   - name: Zones
   - name: Orders
+  - name: Couriers
+  - name: Routes
 paths:
   /health:
     get:
@@ -221,6 +223,367 @@ paths:
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/PersistenceUnavailable'
+  /couriers:
+    post:
+      operationId: createCourier
+      description: Alta inicialmente no disponible. Se permiten nombres repetidos. Campos adicionales se ignoran.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - displayName
+              - maxOrdersPerTrip
+              properties:
+                displayName:
+                  type: string
+                  pattern: \S
+                maxOrdersPerTrip:
+                  type: integer
+                  minimum: 1
+                  maximum: 2147483647
+      responses:
+        '201':
+          description: Repartidor creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Courier'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '413':
+          $ref: '#/components/responses/Validation'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      tags:
+      - Couriers
+    get:
+      operationId: listCouriers
+      description: Orden por ID. available=true selecciona habilitados, disponibles y sin ruta asignada/en_curso; false selecciona
+        el complemento.
+      parameters:
+      - name: available
+        in: query
+        schema:
+          type: boolean
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: offset
+        in: query
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          default: 0
+      responses:
+        '200':
+          description: Página de repartidores
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - items
+                - limit
+                - offset
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Courier'
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/Validation'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      tags:
+      - Couriers
+  /couriers/{id}/availability:
+    parameters:
+    - $ref: '#/components/parameters/CourierId'
+    patch:
+      operationId: setCourierAvailability
+      description: Cambiar la bandera no elimina una reserva activa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - isAvailable
+              properties:
+                isAvailable:
+                  type: boolean
+      responses:
+        '200':
+          description: Repartidor actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Courier'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '404':
+          $ref: '#/components/responses/CourierNotFound'
+        '409':
+          $ref: '#/components/responses/CourierConflict'
+        '413':
+          $ref: '#/components/responses/Validation'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      tags:
+      - Couriers
+  /courier-assignments:
+    post:
+      operationId: assignCourier
+      description: Asignación atómica de ruta preparada. Sin reintento automático ante resultado incierto; consultar la ruta
+        antes de repetir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - routeId
+              - courierId
+              properties:
+                routeId:
+                  type: string
+                  format: uuid
+                courierId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Ruta asignada
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - routeId
+                - courierId
+                - status
+                properties:
+                  routeId:
+                    type: string
+                    format: uuid
+                  courierId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    const: asignada
+        '400':
+          $ref: '#/components/responses/Validation'
+        '404':
+          $ref: '#/components/responses/CourierNotFound'
+        '409':
+          $ref: '#/components/responses/CourierConflict'
+        '413':
+          $ref: '#/components/responses/Validation'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      tags:
+      - Couriers
+  /couriers/{id}/route:
+    parameters:
+    - $ref: '#/components/parameters/CourierId'
+    get:
+      operationId: getCourierRoute
+      responses:
+        '200':
+          description: Ruta activa con paradas vigentes por posición; null si el repartidor existe sin ruta activa.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - item
+                properties:
+                  item:
+                    oneOf:
+                    - $ref: '#/components/schemas/AssignedRoute'
+                    - type: 'null'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '404':
+          $ref: '#/components/responses/CourierNotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      tags:
+      - Couriers
+  /route-plans:
+    post:
+      operationId: planRoutes
+      tags:
+      - Routes
+      summary: Generar rutas de un día respetando la capacidad por salida
+      description: Llama logistica.generate_routes(serviceDate, capacityLimit, Idempotency-Key). Toma solo pedidos pendientes
+        del día solicitado y zonas activas; abre una ruta nueva cuando la actual alcanza capacityLimit. Sin pendientes devuelve
+        routeIds vacío y no crea rutas vacías. Repetir la misma clave con los mismos datos devuelve el resultado original; la
+        misma clave con datos distintos para el mismo día responde 409. Una clave nueva sin pedidos pendientes no crea ni duplica
+        rutas. Los campos adicionales del cuerpo se ignoran.
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        description: UUID elegido por el cliente para reintentar sin duplicar la planificación.
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        example: 6f1c2e8a-4b3d-4c5e-9f10-2a3b4c5d6e7f
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoutePlanRequest'
+            example:
+              serviceDate: '2026-11-10'
+              capacityLimit: 4
+      responses:
+        '200':
+          description: Planificación realizada o recuperada por la misma clave.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutePlanResult'
+              examples:
+                planned:
+                  summary: Cinco pedidos de una zona y dos de otra con capacidad 4
+                  value:
+                    serviceDate: '2026-11-10'
+                    routeIds:
+                    - 0c7f2a5e-1b2c-4d3e-8f4a-5b6c7d8e9f01
+                    - 3a9b8c7d-6e5f-4a3b-9c2d-1e0f2a3b4c5d
+                    - 7d6c5b4a-3f2e-4d1c-8b0a-9f8e7d6c5b4a
+                empty:
+                  summary: Sin pedidos pendientes
+                  value:
+                    serviceDate: '2026-11-10'
+                    routeIds: []
+        '400':
+          $ref: '#/components/responses/RoutesValidationError'
+        '409':
+          $ref: '#/components/responses/DataConflict'
+        '413':
+          $ref: '#/components/responses/RoutesPayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/RoutesInternalError'
+        '503':
+          $ref: '#/components/responses/RoutesPersistenceUnavailable'
+  /routes:
+    get:
+      operationId: listRoutes
+      tags:
+      - Routes
+      summary: Listar rutas por fecha de servicio y zona
+      description: Filtros opcionales combinados con AND. Orden estable por ID. Una página vacía es válida.
+      parameters:
+      - name: serviceDate
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/Date'
+      - name: zoneId
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/Uuid'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 2147483647
+          default: 0
+      responses:
+        '200':
+          description: Página de rutas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutePage'
+              example:
+                items:
+                - id: 0c7f2a5e-1b2c-4d3e-8f4a-5b6c7d8e9f01
+                  zoneId: 1e2d3c4b-5a69-4788-9a0b-c1d2e3f4a5b6
+                  serviceDate: '2026-11-10'
+                  capacityLimit: 4
+                  status: planificada
+                  courierId: null
+                  occupiedSlots: 4
+                limit: 25
+                offset: 0
+        '400':
+          $ref: '#/components/responses/RoutesValidationError'
+        '500':
+          $ref: '#/components/responses/RoutesInternalError'
+        '503':
+          $ref: '#/components/responses/RoutesPersistenceUnavailable'
+  /routes/{id}:
+    get:
+      operationId: getRoute
+      tags:
+      - Routes
+      summary: Consultar el detalle de una ruta con sus paradas vigentes
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+      responses:
+        '200':
+          description: Ruta con paradas ordenadas por posición.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteDetail'
+              example:
+                id: 3a9b8c7d-6e5f-4a3b-9c2d-1e0f2a3b4c5d
+                zoneId: 1e2d3c4b-5a69-4788-9a0b-c1d2e3f4a5b6
+                serviceDate: '2026-11-10'
+                capacityLimit: 4
+                status: planificada
+                courierId: null
+                occupiedSlots: 1
+                stops:
+                - orderId: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                  position: 1
+                  deliveryAddress: Av. 9 de Octubre y Malecón
+                  deliveryDate: '2026-11-10'
+                  deliveryTime: '11:00'
+                  status: asignado_a_ruta
+        '400':
+          $ref: '#/components/responses/RoutesValidationError'
+        '404':
+          $ref: '#/components/responses/RouteNotFound'
+        '500':
+          $ref: '#/components/responses/RoutesInternalError'
+        '503':
+          $ref: '#/components/responses/RoutesPersistenceUnavailable'
 components:
   parameters:
     ResourceId:
@@ -231,6 +594,13 @@ components:
         type: string
         format: uuid
         pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+    CourierId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
     CreateZone:
       type: object
@@ -422,6 +792,272 @@ components:
           type: string
         error:
           $ref: '#/components/schemas/ErrorDetail'
+    CourierError:
+      type: object
+      required:
+      - code
+      - message
+      - error
+      properties:
+        code:
+          type: string
+          enum:
+          - VALIDATION_ERROR
+          - COURIER_NOT_FOUND
+          - ROUTE_NOT_FOUND
+          - DATA_CONFLICT
+          - PERSISTENCE_UNAVAILABLE
+        message:
+          type: string
+        error:
+          type: object
+          required:
+          - code
+          - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    Courier:
+      type: object
+      required:
+      - id
+      - displayName
+      - maxOrdersPerTrip
+      - isEnabled
+      - isAvailable
+      - createdAt
+      - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+        maxOrdersPerTrip:
+          type: integer
+          minimum: 1
+        isEnabled:
+          type: boolean
+        isAvailable:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AssignedRoute:
+      type: object
+      required:
+      - routeId
+      - zoneId
+      - serviceDate
+      - status
+      - stops
+      properties:
+        routeId:
+          type: string
+          format: uuid
+        zoneId:
+          type: string
+          format: uuid
+        serviceDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - asignada
+          - en_curso
+        stops:
+          type: array
+          items:
+            type: object
+            required:
+            - orderId
+            - position
+            - deliveryAddress
+            - deliveryTime
+            - status
+            properties:
+              orderId:
+                type: string
+                format: uuid
+              position:
+                type: integer
+                minimum: 1
+              deliveryAddress:
+                type: string
+              deliveryTime:
+                type: string
+                pattern: ^\d{2}:\d{2}$
+              status:
+                type: string
+    Uuid:
+      type: string
+      format: uuid
+      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$
+    Date:
+      type: string
+      format: date
+      pattern: ^\d{4}-\d{2}-\d{2}$
+      description: Día de calendario YYYY-MM-DD en America/Guayaquil.
+    RoutePlanRequest:
+      type: object
+      required:
+      - serviceDate
+      - capacityLimit
+      additionalProperties: true
+      properties:
+        serviceDate:
+          $ref: '#/components/schemas/Date'
+        capacityLimit:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Pedidos por salida. El valor 4 es solo un ejemplo, no una constante del negocio.
+    RoutePlanResult:
+      type: object
+      required:
+      - serviceDate
+      - routeIds
+      additionalProperties: false
+      properties:
+        serviceDate:
+          $ref: '#/components/schemas/Date'
+        routeIds:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Uuid'
+    RouteStatus:
+      type: string
+      enum:
+      - planificada
+      - asignada
+      - en_curso
+      - completada
+      - cancelada
+    OrderStatus:
+      type: string
+      enum:
+      - pendiente
+      - asignado_a_ruta
+      - recogido
+      - en_camino
+      - entregado
+    Route:
+      type: object
+      required:
+      - id
+      - zoneId
+      - serviceDate
+      - capacityLimit
+      - status
+      - courierId
+      - occupiedSlots
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        zoneId:
+          $ref: '#/components/schemas/Uuid'
+        serviceDate:
+          $ref: '#/components/schemas/Date'
+        capacityLimit:
+          type: integer
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/RouteStatus'
+        courierId:
+          oneOf:
+          - $ref: '#/components/schemas/Uuid'
+          - type: 'null'
+        occupiedSlots:
+          type: integer
+          minimum: 0
+          description: Paradas vigentes; nunca supera capacityLimit.
+    RouteStop:
+      type: object
+      required:
+      - orderId
+      - position
+      - deliveryAddress
+      - deliveryDate
+      - deliveryTime
+      - status
+      additionalProperties: false
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        position:
+          type: integer
+          minimum: 1
+        deliveryAddress:
+          type: string
+        deliveryDate:
+          $ref: '#/components/schemas/Date'
+        deliveryTime:
+          type: string
+          pattern: ^([01]\d|2[0-3]):[0-5]\d$
+          description: Hora HH:mm de America/Guayaquil.
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+    RouteDetail:
+      allOf:
+      - $ref: '#/components/schemas/Route'
+      - type: object
+        required:
+        - stops
+        properties:
+          stops:
+            type: array
+            items:
+              $ref: '#/components/schemas/RouteStop'
+    RoutePage:
+      type: object
+      required:
+      - items
+      - limit
+      - offset
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Route'
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          minimum: 0
+    RoutesError:
+      type: object
+      required:
+      - code
+      - message
+      - error
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        error:
+          type: object
+          required:
+          - code
+          - message
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+            message:
+              type: string
   responses:
     ValidationError:
       description: Entrada ausente o inválida; VALIDATION_ERROR.
@@ -459,3 +1095,83 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    Validation:
+      description: VALIDATION_ERROR; entrada inválida o cuerpo mayor a 32 KB (413).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CourierError'
+    CourierNotFound:
+      description: COURIER_NOT_FOUND o ROUTE_NOT_FOUND.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CourierError'
+    CourierConflict:
+      description: DATA_CONFLICT; no elegible, capacidad insuficiente, reserva activa o ruta no asignable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CourierError'
+    Unavailable:
+      description: PERSISTENCE_UNAVAILABLE; sin detalles SQL ni reintentos automáticos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CourierError'
+    RoutesValidationError:
+      description: 'Entrada inválida: fecha, capacidad, UUID, clave, paginación o JSON.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoutesError'
+          example:
+            code: VALIDATION_ERROR
+            message: El campo capacityLimit debe ser un entero positivo.
+            error:
+              code: VALIDATION_ERROR
+              message: El campo capacityLimit debe ser un entero positivo.
+    RoutesPayloadTooLarge:
+      description: Cuerpo JSON mayor que 32 KB.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoutesError'
+    DataConflict:
+      description: Misma Idempotency-Key con datos distintos u operación concurrente en curso.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoutesError'
+          example:
+            code: DATA_CONFLICT
+            message: La solicitud entra en conflicto con una planificación existente; si reutilizas la clave, envía los mismos
+              datos.
+            error:
+              code: DATA_CONFLICT
+              message: La solicitud entra en conflicto con una planificación existente; si reutilizas la clave, envía los mismos
+                datos.
+    RouteNotFound:
+      description: La ruta no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoutesError'
+          example:
+            code: ROUTE_NOT_FOUND
+            message: Ruta no encontrada.
+            error:
+              code: ROUTE_NOT_FOUND
+              message: Ruta no encontrada.
+    RoutesPersistenceUnavailable:
+      description: Fallo técnico de persistencia; no expone SQLSTATE ni mensajes del driver.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoutesError'
+    RoutesInternalError:
+      description: Error inesperado o ruta almacenada que incumple una regla de planificación.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoutesError'

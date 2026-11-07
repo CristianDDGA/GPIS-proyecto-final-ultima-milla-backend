@@ -1,6 +1,8 @@
-# Contrato HTTP del Sprint 01
+# Contrato HTTP de la API
 
-`openapi.yaml` es la fuente canónica del contrato de Zonas y Pedidos. Cristian mantiene esta definición; Jhon revisa Zonas y Alexis revisa el consumo web. La versión inicial es `0.1.0`, propuesta para revisión del equipo.
+`openapi.yaml` es la fuente canónica del contrato de la API unificada (versión `0.2.0`): Zonas y Pedidos (Sprint 01), Rutas y Repartidores (Sprint 02). Los archivos de `sprint-02/` se conservan como historial de cada entrega; sus paths ya están incluidos en `openapi.yaml`, y los componentes con el mismo nombre pero distinta definición llevan el prefijo del módulo (`Courier*`, `Routes*`).
+
+Definición original del Sprint 01: Cristian mantiene esta definición; Jhon revisa Zonas y Alexis revisa el consumo web. La versión inicial es `0.1.0`, propuesta para revisión del equipo.
 
 ## Uso desde frontend
 
@@ -13,7 +15,9 @@ Los cambios de contrato se coordinan mediante PR relacionados. No se crea otro c
 
 ## Decisiones HTTP
 
-- Rutas: `/health`, `/zones`, `/zones/{id}`, `/orders` y `/orders/{id}`.
+- Rutas: `/health`, `/zones`, `/zones/{id}`, `/orders`, `/orders/{id}`, `/route-plans`, `/routes`, `/routes/{id}`, `/couriers`, `/couriers/{id}/availability`, `/couriers/{id}/route` y `/courier-assignments`.
+- Una ruta inexistente responde `404 / NOT_FOUND`, y el JSON mal formado responde `400 / VALIDATION_ERROR` en cualquier ruta, siempre con el mismo sobre.
+- CORS permite al origen web las cabeceras `Content-Type`, `Authorization` e `Idempotency-Key`.
 - Alta: `201`. Consulta: `200`; una lista sin coincidencias devuelve `{ "items": [] }`.
 - Validación: `400 / VALIDATION_ERROR`; JSON mayor que 32 KB: `413 / VALIDATION_ERROR`.
 - Ausencia: `404 / ZONE_NOT_FOUND` o `404 / ORDER_NOT_FOUND`.
@@ -27,6 +31,6 @@ Los cambios de contrato se coordinan mediante PR relacionados. No se crea otro c
 
 ## Disponibilidad
 
-El contrato describe las operaciones del incremento. Con `DATABASE_URL`, `server.ts` conecta el cliente Prisma único e inyecta los repositorios reales y el lookup de zonas activas. La API usa `logistica_app` y las funciones originales. Sin URL solo habilita `/health`. `createApp` permite inyectar Orders y su consulta de zonas por separado.
+Con `DATABASE_URL`, `server.ts` conecta el cliente Prisma único y `create-persisted-app.ts` monta todos los módulos en el mismo servidor (puerto `PORT`, 3000 por defecto): zonas, pedidos, rutas y repartidores. Los servidores autónomos de `src/bootstrap/sprint02/` (3011 y 3012) se conservan solo para reproducir las entregas del Sprint 02. La API usa `logistica_app` y las funciones originales. Sin URL solo habilita `/health`. `createApp` permite inyectar Orders y su consulta de zonas por separado.
 
 No se habilita almacenamiento en memoria como base de datos del servidor. `npm run test:integration:postgres` ejecuta los mismos casos HTTP con PostgreSQL real en un contenedor temporal; el modo en memoria se conserva como regresión.

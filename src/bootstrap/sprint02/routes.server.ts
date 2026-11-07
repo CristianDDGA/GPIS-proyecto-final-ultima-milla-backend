@@ -10,9 +10,7 @@ import { PrismaRouteRepository } from '../../modules/routes/infrastructure/postg
 // Factory for Supertest and the demo: mounts only Routes on the shared createApp.
 export function createRoutesApp(database: PrismaQueryClient, webOrigin: string) {
   const routes = createRoutesModule(new PrismaRouteRepository(database));
-  const app = createApp({ webOrigin, routers: routes.routers });
-  app.use(routes.errorHandler);
-  return app;
+  return createApp({ webOrigin, routers: routes.routers, errorHandlers: [routes.errorHandler] });
 }
 
 function routesPort(environment: NodeJS.ProcessEnv): number {

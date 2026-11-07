@@ -1,9 +1,9 @@
-import express, { type Router } from 'express';
+import express, { type ErrorRequestHandler, type Router } from 'express';
 import type { ZoneRepository } from '../modules/zones/application/ports/zone.repository.port.js';
 import { createZonesModule } from '../modules/zones/index.js';
 import type { OrderRepository } from '../modules/orders/application/ports/order.repository.port.js';
 import { createOrdersModule } from '../modules/orders/index.js';
-import { jsonErrorHandler, requireJsonObject } from './json.middleware.js';
+import { fallbackErrorHandler, jsonErrorHandler, notFoundHandler, requireJsonObject } from './json.middleware.js';
 import type { OrderZonePort } from '../modules/orders/application/ports/order-zone.port.js';
 
 export interface AppDependencies {
@@ -12,6 +12,7 @@ export interface AppDependencies {
   readonly zoneRepository?: ZoneRepository;
   readonly orderRepository?: OrderRepository;
   readonly orderZoneLookup?: OrderZonePort;
+  readonly errorHandlers?: ReadonlyArray<ErrorRequestHandler>;
 }
 
 export function createApp(dependencies: AppDependencies) {
@@ -26,7 +27,7 @@ export function createApp(dependencies: AppDependencies) {
       response.setHeader('Access-Control-Allow-Origin', dependencies.webOrigin);
       response.setHeader('Vary', 'Origin');
       response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-      response.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+      response.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Idempotency-Key');
     }
 
     if (request.method === 'OPTIONS') {
@@ -60,7 +61,12 @@ export function createApp(dependencies: AppDependencies) {
     app.use(basePath, router);
   }
 
+  // Module handlers only answer their own paths; the shared handler covers every other JSON error.
+  for (const handler of dependencies.errorHandlers ?? []) app.use(handler);
   app.use(jsonErrorHandler);
+  // Unknown paths and unexpected failures always answer with the shared JSON envelope.
+  app.use(notFoundHandler);
+  app.use(fallbackErrorHandler);
 
   return app;
 }

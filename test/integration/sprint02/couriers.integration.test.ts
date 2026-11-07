@@ -5,7 +5,10 @@ import { PrismaCourierRepository } from '../../../src/modules/couriers/infrastru
 import { PrismaAssignmentRepository } from '../../../src/modules/couriers/infrastructure/postgres/prisma-assignment.repository.js';
 import { courierDatabase, preparedRoute, resetTestData, routeSnapshot, disableCourier, serviceDate, type FixtureDatabase } from './couriers.fixture.js';
 
-describe('Sprint 02 - Couriers - PostgreSQL real (sin mocks)', () => {
+// Without the PostgreSQL harness (in-memory CI step) the suite is reported as skipped, not failed.
+const describeReal = process.env['TEST_DATABASE_URL'] ? describe : describe.skip;
+
+describeReal('Sprint 02 - Couriers - PostgreSQL real (sin mocks)', () => {
   let database: FixtureDatabase;
   let secondDatabase: FixtureDatabase;
   let app: ReturnType<typeof createCouriersApp>;
