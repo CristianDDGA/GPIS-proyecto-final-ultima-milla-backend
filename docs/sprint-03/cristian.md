@@ -37,6 +37,6 @@ Decisiones:
 | S3-C01 | Hecho | Fragmento OpenAPI y este documento |
 | S3-C02 | Hecho | Dominio `RouteOperations` (validación de UUID y lista completa sin repetidos; el resultado persistido debe coincidir con el comando), puerto `RouteOperationsRepository`, casos `MoveOrder` y `ReorderStops`, adaptador `PrismaRouteOperationsRepository` sobre `move_order`/`reorder_route` con lectura en la misma transacción |
 | S3-C03 | Hecho | `RouteOperations.prepareLatePlacement`/`acceptLatePlacement` (dos resultados válidos: `asignado_a_ruta` con `routeId` o `pendiente` con `NO_AVAILABLE_COURIER`), puerto `LatePlacementRepository`, caso `PlaceLateOrder` y adaptador sobre `place_late_order` (idempotente y atómica por sí misma) |
-| S3-C04 | Por hacer | |
+| S3-C04 | Hecho | `RouteOperationsController`, routers `POST /route-moves`, `PUT /routes/{id}/stop-order`, `POST /late-order-placements` y manejador JSON propio; `createRouteOperationsModule` montado solo en `routes.server.ts` (3011). `createRoutesModule` y la composición global sin cambios; regresión 102/102 |
 | S3-C05 | No ejecutado | |
 | S3-C06 | No ejecutado | |

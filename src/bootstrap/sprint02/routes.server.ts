@@ -3,14 +3,21 @@ import { pathToFileURL } from 'node:url';
 import { createApp } from '../create-app.js';
 import { loadConfig } from '../config.js';
 import { createDatabaseClient } from '../database.js';
-import type { PrismaQueryClient } from '../../infrastructure/postgres/prisma-client.port.js';
-import { createRoutesModule } from '../../modules/routes/index.js';
+import type { PrismaDatabaseClient } from '../../infrastructure/postgres/prisma-client.port.js';
+import { createRouteOperationsModule, createRoutesModule } from '../../modules/routes/index.js';
 import { PrismaRouteRepository } from '../../modules/routes/infrastructure/postgres/prisma-route.repository.js';
+import { PrismaRouteOperationsRepository } from '../../modules/routes/infrastructure/postgres/prisma-route-operations.repository.js';
 
-// Factory for Supertest and the demo: mounts only Routes on the shared createApp.
-export function createRoutesApp(database: PrismaQueryClient, webOrigin: string) {
+// Factory for Supertest and the demo: mounts only Routes (S2 endpoints + S3 operations) on the shared createApp.
+export function createRoutesApp(database: PrismaDatabaseClient, webOrigin: string) {
   const routes = createRoutesModule(new PrismaRouteRepository(database));
-  return createApp({ webOrigin, routers: routes.routers, errorHandlers: [routes.errorHandler] });
+  const adapter = new PrismaRouteOperationsRepository(database);
+  const operations = createRouteOperationsModule({ operations: adapter, latePlacements: adapter });
+  return createApp({
+    webOrigin,
+    routers: [...routes.routers, ...operations.routers],
+    errorHandlers: [routes.errorHandler, operations.errorHandler],
+  });
 }
 
 function routesPort(environment: NodeJS.ProcessEnv): number {
@@ -32,7 +39,7 @@ async function main(): Promise<void> {
     throw new Error('No se pudo conectar PostgreSQL. Revisa Docker y DATABASE_URL.');
   }
   const server = createRoutesApp(database, config.webOrigin).listen(port, () => {
-    process.stdout.write(`Routes (Sprint 02) escuchando en http://localhost:${port}\n`);
+    process.stdout.write(`Routes (Sprint 02 + operaciones Sprint 03) escuchando en http://localhost:${port}\n`);
   });
   server.on('error', () => {
     process.stderr.write('No se pudo iniciar el servidor HTTP de Routes; revisa S2_ROUTES_PORT.\n');
