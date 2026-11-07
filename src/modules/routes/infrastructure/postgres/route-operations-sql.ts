@@ -1,4 +1,4 @@
-import type { RouteMoveCommand, StopOrderCommand } from '../../domain/route-operation.entity.js';
+import type { LatePlacementCommand, RouteMoveCommand, StopOrderCommand } from '../../domain/route-operation.entity.js';
 import type { RouteSqlQuery } from './route-sql.js';
 
 function sql(strings: TemplateStringsArray, ...values: unknown[]): RouteSqlQuery {
@@ -29,6 +29,12 @@ export const logisticaRouteOperationsSql = {
   reorderRoute(command: StopOrderCommand): RouteSqlQuery {
     return sql`SELECT count(*)::integer AS "done"
       FROM logistica.reorder_route(${command.routeId}::uuid, ${[...command.orderIds]}::uuid[])`;
+  },
+
+  placeLateOrder(command: LatePlacementCommand): RouteSqlQuery {
+    return sql`SELECT logistica.place_late_order(
+      ${command.orderId}::uuid, ${command.capacityLimit}::integer, ${command.idempotencyKey}::uuid
+    ) AS "placement"`;
   },
 
   currentStopOrder(routeId: string): RouteSqlQuery {
