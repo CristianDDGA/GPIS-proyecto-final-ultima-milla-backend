@@ -1,0 +1,197 @@
+openapi: 3.1.0
+info:
+  title: Sprint 02 - Couriers (Jhon Jumbo)
+  version: 1.0.0
+  description: Fragmento independiente. Fechas y horas locales en America/Guayaquil; auditoría UTC.
+servers:
+  - url: http://localhost:3012
+paths:
+  /couriers:
+    post:
+      operationId: createCourier
+      description: Alta inicialmente no disponible. Se permiten nombres repetidos. Campos adicionales se ignoran.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [displayName, maxOrdersPerTrip]
+              properties:
+                displayName: {type: string, pattern: '\S'}
+                maxOrdersPerTrip: {type: integer, minimum: 1, maximum: 2147483647}
+      responses:
+        '201':
+          description: Repartidor creado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Courier'}
+        '400': {$ref: '#/components/responses/Validation'}
+        '413': {$ref: '#/components/responses/Validation'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    get:
+      operationId: listCouriers
+      description: Orden por ID. available=true selecciona habilitados, disponibles y sin ruta asignada/en_curso; false selecciona el complemento.
+      parameters:
+        - {name: available, in: query, schema: {type: boolean}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, maximum: 2147483647, default: 0}}
+      responses:
+        '200':
+          description: Página de repartidores
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, limit, offset]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/Courier'}}
+                  limit: {type: integer}
+                  offset: {type: integer}
+        '400': {$ref: '#/components/responses/Validation'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /couriers/{id}/availability:
+    parameters:
+      - {$ref: '#/components/parameters/CourierId'}
+    patch:
+      operationId: setCourierAvailability
+      description: Cambiar la bandera no elimina una reserva activa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isAvailable]
+              properties:
+                isAvailable: {type: boolean}
+      responses:
+        '200':
+          description: Repartidor actualizado
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Courier'}
+        '400': {$ref: '#/components/responses/Validation'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/Validation'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /courier-assignments:
+    post:
+      operationId: assignCourier
+      description: Asignación atómica de ruta preparada. Sin reintento automático ante resultado incierto; consultar la ruta antes de repetir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [routeId, courierId]
+              properties:
+                routeId: {type: string, format: uuid}
+                courierId: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Ruta asignada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [routeId, courierId, status]
+                properties:
+                  routeId: {type: string, format: uuid}
+                  courierId: {type: string, format: uuid}
+                  status: {type: string, const: asignada}
+        '400': {$ref: '#/components/responses/Validation'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/Validation'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /couriers/{id}/route:
+    parameters:
+      - {$ref: '#/components/parameters/CourierId'}
+    get:
+      operationId: getCourierRoute
+      responses:
+        '200':
+          description: Ruta activa con paradas vigentes por posición; null si el repartidor existe sin ruta activa.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [item]
+                properties:
+                  item:
+                    oneOf:
+                      - {$ref: '#/components/schemas/AssignedRoute'}
+                      - {type: 'null'}
+        '400': {$ref: '#/components/responses/Validation'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+components:
+  parameters:
+    CourierId: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+  responses:
+    Validation:
+      description: VALIDATION_ERROR; entrada inválida o cuerpo mayor a 32 KB (413).
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: COURIER_NOT_FOUND o ROUTE_NOT_FOUND.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Conflict:
+      description: DATA_CONFLICT; no elegible, capacidad insuficiente, reserva activa o ruta no asignable.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Unavailable:
+      description: PERSISTENCE_UNAVAILABLE; sin detalles SQL ni reintentos automáticos.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Error:
+      type: object
+      required: [code, message, error]
+      properties:
+        code: {type: string, enum: [VALIDATION_ERROR, COURIER_NOT_FOUND, ROUTE_NOT_FOUND, DATA_CONFLICT, PERSISTENCE_UNAVAILABLE]}
+        message: {type: string}
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string}
+            message: {type: string}
+    Courier:
+      type: object
+      required: [id, displayName, maxOrdersPerTrip, isEnabled, isAvailable, createdAt, updatedAt]
+      properties:
+        id: {type: string, format: uuid}
+        displayName: {type: string}
+        maxOrdersPerTrip: {type: integer, minimum: 1}
+        isEnabled: {type: boolean}
+        isAvailable: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AssignedRoute:
+      type: object
+      required: [routeId, zoneId, serviceDate, status, stops]
+      properties:
+        routeId: {type: string, format: uuid}
+        zoneId: {type: string, format: uuid}
+        serviceDate: {type: string, format: date}
+        status: {type: string, enum: [asignada, en_curso]}
+        stops:
+          type: array
+          items:
+            type: object
+            required: [orderId, position, deliveryAddress, deliveryTime, status]
+            properties:
+              orderId: {type: string, format: uuid}
+              position: {type: integer, minimum: 1}
+              deliveryAddress: {type: string}
+              deliveryTime: {type: string, pattern: '^\d{2}:\d{2}$'}
+              status: {type: string}
