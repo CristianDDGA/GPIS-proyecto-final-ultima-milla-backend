@@ -1,0 +1,390 @@
+openapi: 3.1.0
+info:
+  title: GPIS · Routes · Sprint 03 · Operación y ajustes (fragmento)
+  version: 0.3.0-route-operations
+  description: >-
+    Fragmento de Cristian para HU-RUT-02 (mover pedidos y reordenar paradas antes de la salida) y HU-TAR-01
+    (incorporar un pedido de último momento). Solo añade paths; no modifica el contrato S2 de Routes
+    (/route-plans, /routes, /routes/{id}), que se conserva congelado. Cada operación llama una única función
+    parametrizada del paquete original (move_order, reorder_route, place_late_order); la API no escribe
+    directamente routes, route_stops ni orders. Día de entrega YYYY-MM-DD y hora HH:mm de America/Guayaquil.
+    Se conserva el sobre de error del Sprint 01/02.
+servers:
+  - url: 'http://localhost:3011'
+    description: Entrada autónoma de Routes S2 ampliada (S2_ROUTES_PORT, 3011 por defecto).
+tags:
+  - name: Route operations
+paths:
+  /route-moves:
+    post:
+      operationId: moveOrder
+      tags:
+        - Route operations
+      summary: Mover un pedido asignado a otra ruta compatible antes de la salida
+      description: >-
+        Llama logistica.move_order(orderId, destinationRouteId) y, en la misma transacción, lee la ruta vigente del
+        pedido. La parada pasa al final de la ruta destino; para conocer el orden final se consulta
+        GET /routes/{id} (S2). Rechaza con 409 si el pedido no está asignado a una ruta, si el destino es la misma
+        ruta, si la ruta origen o destino ya salió, si zona/fecha no coinciden o si el destino no tiene cupo. Un
+        rechazo no deja cambios parciales. Si la respuesta es 503 el resultado es incierto: consulta el detalle de
+        ambas rutas antes de reintentar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteMoveRequest'
+            example:
+              orderId: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+              destinationRouteId: 3a9b8c7d-6e5f-4a3b-9c2d-1e0f2a3b4c5d
+      responses:
+        '200':
+          description: Pedido movido; routeId es la ruta destino confirmada por la base.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteMoveResult'
+              example:
+                orderId: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                routeId: 3a9b8c7d-6e5f-4a3b-9c2d-1e0f2a3b4c5d
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          description: El pedido (ORDER_NOT_FOUND) o la ruta destino (ROUTE_NOT_FOUND) no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                order:
+                  value:
+                    code: ORDER_NOT_FOUND
+                    message: Pedido no encontrado.
+                    error:
+                      code: ORDER_NOT_FOUND
+                      message: Pedido no encontrado.
+                route:
+                  value:
+                    code: ROUTE_NOT_FOUND
+                    message: Ruta no encontrada.
+                    error:
+                      code: ROUTE_NOT_FOUND
+                      message: Ruta no encontrada.
+        '409':
+          $ref: '#/components/responses/DataConflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/PersistenceUnavailable'
+  /routes/{id}/stop-order:
+    put:
+      operationId: reorderRouteStops
+      tags:
+        - Route operations
+      summary: Reordenar las paradas de una ruta antes de la salida
+      description: >-
+        Llama logistica.reorder_route(id, orderIds) y, en la misma transacción, lee el orden vigente. orderIds debe
+        contener exactamente los pedidos activos de la ruta, una vez cada uno, en el orden completo deseado; la
+        identidad es el UUID del pedido, nunca un índice de tabla. La misma lista produce el mismo orden observable;
+        la auditoría y los timestamps pueden cambiar. Rechaza con 409 si la lista no coincide con las paradas
+        vigentes o si la ruta ya salió, sin cambios parciales.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StopOrderRequest'
+            example:
+              orderIds:
+                - 7d6c5b4a-3f2e-4d1c-8b0a-9f8e7d6c5b4a
+                - 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+      responses:
+        '200':
+          description: Orden confirmado por la base (posición 1 = primer elemento).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StopOrderResult'
+              example:
+                routeId: 3a9b8c7d-6e5f-4a3b-9c2d-1e0f2a3b4c5d
+                orderIds:
+                  - 7d6c5b4a-3f2e-4d1c-8b0a-9f8e7d6c5b4a
+                  - 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/RouteNotFound'
+        '409':
+          $ref: '#/components/responses/DataConflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/PersistenceUnavailable'
+  /late-order-placements:
+    post:
+      operationId: placeLateOrder
+      tags:
+        - Route operations
+      summary: Incorporar un pedido de último momento a una ruta, a una nueva o dejarlo en espera
+      description: >-
+        Llama logistica.place_late_order(orderId, capacityLimit, Idempotency-Key). El pedido debe estar pendiente.
+        1) Si hay una ruta de su zona y fecha antes de salida con cupo, se inserta en ella. 2) Si no, y hay un
+        repartidor habilitado, disponible y sin ruta activa, se crea una ruta nueva (capacidad mínima entre
+        capacityLimit y el máximo del repartidor) y se le asigna. 3) Si no hay alternativa, responde 200 con
+        status pendiente y reason NO_AVAILABLE_COURIER: es una espera explícita, no un error técnico ni un pedido
+        entregado. Repetir la misma clave con los mismos datos devuelve la respuesta guardada aunque luego existan
+        nuevos recursos; un intento nuevo requiere una clave nueva y nunca registra otro pedido. La clave se
+        registra por pedido: la misma clave con otro capacityLimit para el mismo pedido responde 409.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID elegido por el cliente para reintentar sin duplicar la incorporación.
+          schema:
+            $ref: '#/components/schemas/Uuid'
+          example: 2b4d6f80-1a3c-4e5f-8a7b-9c0d1e2f3a4b
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LatePlacementRequest'
+            example:
+              orderId: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+              capacityLimit: 4
+      responses:
+        '200':
+          description: Pedido incorporado o en espera explícita (o respuesta guardada para la misma clave).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LatePlacementResult'
+              examples:
+                assigned:
+                  summary: Insertado en una ruta existente o en una nueva asignada
+                  value:
+                    orderId: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                    status: asignado_a_ruta
+                    routeId: 3a9b8c7d-6e5f-4a3b-9c2d-1e0f2a3b4c5d
+                pending:
+                  summary: Sin ruta con cupo ni repartidor disponible
+                  value:
+                    orderId: 9b8a7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                    status: pendiente
+                    reason: NO_AVAILABLE_COURIER
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '409':
+          $ref: '#/components/responses/DataConflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/PersistenceUnavailable'
+components:
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+    RouteMoveRequest:
+      type: object
+      required:
+        - orderId
+        - destinationRouteId
+      additionalProperties: true
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        destinationRouteId:
+          $ref: '#/components/schemas/Uuid'
+    RouteMoveResult:
+      type: object
+      required:
+        - orderId
+        - routeId
+      additionalProperties: false
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        routeId:
+          $ref: '#/components/schemas/Uuid'
+    StopOrderRequest:
+      type: object
+      required:
+        - orderIds
+      additionalProperties: true
+      properties:
+        orderIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Uuid'
+    StopOrderResult:
+      type: object
+      required:
+        - routeId
+        - orderIds
+      additionalProperties: false
+      properties:
+        routeId:
+          $ref: '#/components/schemas/Uuid'
+        orderIds:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Uuid'
+    LatePlacementRequest:
+      type: object
+      required:
+        - orderId
+        - capacityLimit
+      additionalProperties: true
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        capacityLimit:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: Pedidos por salida si hay que crear una ruta nueva. El valor 4 es solo un ejemplo.
+    LatePlacementAssigned:
+      type: object
+      required:
+        - orderId
+        - status
+        - routeId
+      additionalProperties: false
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          const: asignado_a_ruta
+        routeId:
+          $ref: '#/components/schemas/Uuid'
+    LatePlacementPending:
+      type: object
+      required:
+        - orderId
+        - status
+        - reason
+      additionalProperties: false
+      properties:
+        orderId:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          const: pendiente
+        reason:
+          const: NO_AVAILABLE_COURIER
+    LatePlacementResult:
+      oneOf:
+        - $ref: '#/components/schemas/LatePlacementAssigned'
+        - $ref: '#/components/schemas/LatePlacementPending'
+    Error:
+      type: object
+      required:
+        - code
+        - message
+        - error
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        error:
+          type: object
+          required:
+            - code
+            - message
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+  responses:
+    ValidationError:
+      description: 'Entrada inválida: UUID, lista de pedidos vacía o repetida, capacidad, clave o JSON.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: VALIDATION_ERROR
+            message: El campo orderIds no puede repetir pedidos.
+            error:
+              code: VALIDATION_ERROR
+              message: El campo orderIds no puede repetir pedidos.
+    PayloadTooLarge:
+      description: Cuerpo JSON mayor que 32 KB.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    DataConflict:
+      description: >-
+        Regla de negocio o concurrencia: ruta iniciada, zona/fecha distinta, sin cupo, pedido no asignado o ya
+        asignado, lista que no coincide con las paradas vigentes, misma clave con otros datos u operación en curso.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: DATA_CONFLICT
+            message: La operación entra en conflicto con el estado actual de la ruta o del pedido.
+            error:
+              code: DATA_CONFLICT
+              message: La operación entra en conflicto con el estado actual de la ruta o del pedido.
+    RouteNotFound:
+      description: La ruta no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: ROUTE_NOT_FOUND
+            message: Ruta no encontrada.
+            error:
+              code: ROUTE_NOT_FOUND
+              message: Ruta no encontrada.
+    OrderNotFound:
+      description: El pedido no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: ORDER_NOT_FOUND
+            message: Pedido no encontrado.
+            error:
+              code: ORDER_NOT_FOUND
+              message: Pedido no encontrado.
+    PersistenceUnavailable:
+      description: >-
+        Fallo técnico de persistencia; no expone SQLSTATE ni mensajes del driver. En un movimiento el resultado es
+        incierto: consultar antes de reintentar.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Error inesperado o dato persistido que incumple una regla de la ruta.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
