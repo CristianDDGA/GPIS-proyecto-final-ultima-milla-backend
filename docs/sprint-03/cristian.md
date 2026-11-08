@@ -1,6 +1,6 @@
 # Sprint 03 · Cristian Ango · Operación y ajustes de rutas (HU-RUT-02, HU-TAR-01)
 
-Rama: `feature/sprint-03-cristian-route-operations`, creada desde `develop` en `c09a5e0` (merge del PR #7). Entrega local del 07/11/2026, America/Guayaquil. Sin push, PR ni merge: la prueba manual, la revisión humana y la promoción conjunta siguen pendientes.
+Rama: `feature/sprint-03-cristian-route-operations`, creada desde `develop` en `c09a5e0` (merge del PR #7). Entrega local del 07/11/2026, America/Guayaquil. Sin push, PR ni merge: la revisión humana y la promoción conjunta siguen pendientes.
 
 ## Base S2 recibida
 
@@ -73,8 +73,9 @@ Entorno: Windows x64, Node 24.22.2, npm 11.19.1, Docker 29.7.2 (motor Linux), im
 | S3-CP-002 | Aprobado | Pedido pendiente para hoy (America/Guayaquil); variantes con ruta compatible con cupo, sin cupo con repartidor disponible y sin alternativa. Insertar o crear y asignar; si no hay repartidor, pendiente con motivo; sin superar cupos ni duplicar pedidos; replay estable | 7/7. Inserción en la ruta con cupo. Ruta nueva `asignada` al repartidor disponible con capacidad mín(capacityLimit, máximo del repartidor). `pendiente` + `NO_AVAILABLE_COURIER` sin crear rutas. La misma clave devuelve la respuesta guardada aunque luego aparezca un repartidor; una clave nueva sí lo asigna y no crea otro pedido. 409 para la misma clave con otro payload y para un pedido ya asignado; 404 para un pedido inexistente; 7 entradas inválidas con 400. Dos tardíos simultáneos con un cupo: uno entra y el otro espera. Base inaccesible: 503 sin detalles; en el movimiento, aviso de consultar antes de reintentar |
 | S3-CP-006 | Aprobado (estático local) | TypeScript estricto, lint, build, contrato, arquitectura y alcance | `typecheck`, `typecheck:test`, `eslint .` y `build`: exit 0. OpenAPI 3.1 parseado: 3 operaciones, 46 referencias resueltas, ningún path S2 modificado. Domain/Application sin Express, Prisma ni Node, y Application sin dependencias de infraestructura ni presentación. Presentation no importa infraestructura. Sin imports de Zones/Orders/Couriers. Sin `INSERT/UPDATE/DELETE` ni `$queryRawUnsafe` en el módulo. Los 19 archivos cambiados respecto de `c09a5e0` están dentro de la lista exclusiva. `git diff --check` limpio |
 | Regresión S1/S2 | Aprobado | Suites heredadas sin cambios | 102/102 dentro de la suite completa 118/118 |
+| Prueba manual HTTP | Aprobado | Servidores levantados: API principal en 3000 (`npm run dev`) y entrada de Routes en 3011, contra la base de desarrollo (`127.0.0.1:15432`), 07/11/2026 19:17 America/Guayaquil, commit `efdde0e`. Datos nuevos en fechas de 2027 | Script `sprint03-prueba-manual.mjs` (fuera del repositorio, en la carpeta de reportes, junto con su log): 37/37 comprobaciones. S3-CP-001: 4 rechazos 409 sin cambios, movimiento y reordenamiento confirmados, 409/400/404 de validación. S3-CP-002: inserción con cupo, replay, 409 por otro payload, espera `NO_AVAILABLE_COURIER`, replay estable tras aparecer un repartidor, ruta nueva asignada con capacidad 3, sin superar cupos, 409/404/400. El repartidor de la prueba quedó no disponible al terminar. La ruta iniciada se acredita solo en S3-CP-001 automatizado |
 
-No se ejecutaron SonarQube (no hay servidor remoto configurado) ni CI remoto. No se acredita revisión humana ni aceptación formal del sprint. La prueba manual en Postman queda pendiente.
+No se ejecutaron SonarQube (no hay servidor remoto configurado) ni CI remoto. No se acredita revisión humana ni aceptación formal del sprint.
 
 ## Hallazgos
 
