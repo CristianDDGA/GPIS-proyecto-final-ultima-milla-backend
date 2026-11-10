@@ -23,8 +23,12 @@ export function validateActorId(value: unknown): string {
   return value.toLowerCase();
 }
 
+export function isActorRole(value: unknown): value is ActorRole {
+  return value === 'personal' || value === 'repartidor';
+}
+
 export function assertActorActive(actor: Actor | null | undefined): asserts actor is Actor {
-  if (!actor || !actor.isActive) {
+  if (!actor || !actor.isActive || !isActorRole(actor.role)) {
     throw new DeliveryError('FORBIDDEN', 'El actor no existe o no está activo.');
   }
 }
@@ -32,10 +36,11 @@ export function assertActorActive(actor: Actor | null | undefined): asserts acto
 export function assertCanCompleteRoute(
   actor: Actor,
   routeCourierUserId: string | null,
+  courierEnabled = true,
 ): void {
   assertActorActive(actor);
   if (actor.role === 'repartidor') {
-    if (!routeCourierUserId || routeCourierUserId !== actor.id) {
+    if (!courierEnabled || !routeCourierUserId || routeCourierUserId !== actor.id) {
       throw new DeliveryError(
         'FORBIDDEN',
         'El repartidor solo puede completar rutas asignadas a su usuario.',
