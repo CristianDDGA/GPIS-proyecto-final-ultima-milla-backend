@@ -108,16 +108,16 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
 
         const resultRows = await client.$queryRaw<unknown[]>`
           SELECT
-            res->>'orderId' AS "orderId",
-            res->>'status' AS "status",
-            res->>'version' AS "version"
+            res.payload->>'orderId' AS "orderId",
+            res.payload->>'status' AS "status",
+            res.payload->>'version' AS "version"
           FROM logistica.change_status_once(
             ${command.orderId}::uuid,
             ${command.newStatus}::text,
             ${command.expectedVersion}::bigint,
             ${actorId}::uuid,
             ${command.idempotencyKey}::uuid
-          ) AS res
+          ) AS res(payload)
         `;
         return mapStatusChangeResultRow(resultRows[0], command.orderId);
       });
@@ -181,7 +181,7 @@ export class PrismaDeliveryRepository implements DeliveryRepository {
         assertRouteCompletable(route.status, stopStatuses);
 
         await client.$queryRaw`
-          SELECT set_config('logistica.actor_subject', ${actor.authSubject}::text, true)
+          SELECT set_config('logistica.actor_subject', ${actor.authSubject}::text, true) AS actor_subject
         `;
         await client.$queryRaw`
           SELECT 1 AS ok
