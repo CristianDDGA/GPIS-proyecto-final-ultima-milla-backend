@@ -16,6 +16,16 @@ export class RouteNotFoundError extends Error {
   }
 }
 
+// Route operations reference orders by identity; a missing order keeps the Sprint 01 code.
+export class RouteOrderNotFoundError extends Error {
+  readonly code = 'ORDER_NOT_FOUND' as const;
+
+  constructor(message: string = 'Pedido no encontrado.') {
+    super(message);
+    this.name = 'RouteOrderNotFoundError';
+  }
+}
+
 export class RouteConflictError extends Error {
   readonly code = 'DATA_CONFLICT' as const;
 

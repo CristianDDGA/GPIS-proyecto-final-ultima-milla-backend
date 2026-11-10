@@ -33,6 +33,18 @@ export function validateCapacityLimit(value: unknown): number {
   return value;
 }
 
+// Complete desired stop order: a non-empty JSON array of distinct order UUIDs (identity, never UI indexes).
+export function validateOrderIdList(value: unknown, field = 'orderIds'): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new RouteValidationError(`El campo ${field} debe ser una lista no vacía de UUID de pedidos.`);
+  }
+  const ids = value.map((item: unknown, index) => validateUuid(item, `${field}[${index}]`));
+  if (new Set(ids).size !== ids.length) {
+    throw new RouteValidationError(`El campo ${field} no puede repetir pedidos.`);
+  }
+  return ids;
+}
+
 function parseQueryInteger(value: string | undefined, field: string, minimum: number, maximum: number, fallback: number): number {
   if (value === undefined) return fallback;
   if (!/^\d{1,10}$/.test(value)) {
