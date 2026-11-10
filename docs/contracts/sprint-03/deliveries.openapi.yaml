@@ -1,0 +1,264 @@
+openapi: 3.1.0
+info:
+  title: Sprint 03 - Deliveries (Jhon Jumbo)
+  version: 1.0.0
+  description: Estados de entrega, consulta, transiciones idempotentes y finalización de rutas. Fechas y horas en America/Guayaquil; auditoría UTC.
+servers:
+  - url: http://localhost:3013
+paths:
+  /delivery-orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      operationId: getDeliveryOrder
+      description: Consulta del estado de entrega, ruta asociada y versión para concurrencia optimista.
+      responses:
+        '200':
+          description: Detalle del pedido de entrega
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryOrder'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /delivery-status-changes:
+    post:
+      operationId: changeDeliveryStatus
+      description: Cambio atómico e idempotente de estado de entrega con control de versión optimista y actor confiable.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryStatusChangeRequest'
+      responses:
+        '200':
+          description: Estado actualizado exitosamente o respuesta reproducida por idempotencia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryStatusChangeResponse'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/Validation'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /route-completions:
+    post:
+      operationId: completeRoute
+      description: Finalización de ruta en curso cuando todos los pedidos están entregados y el actor está autorizado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteCompletionRequest'
+      responses:
+        '200':
+          description: Ruta completada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteCompletionResponse'
+        '400':
+          $ref: '#/components/responses/Validation'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/RouteNotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/Validation'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  parameters:
+    OrderId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Validation:
+      description: VALIDATION_ERROR; entrada inválida o cuerpo mayor a 32 KB (413).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: FORBIDDEN; actor inactivo, sin permisos o pedido/ruta no asignado al repartidor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    OrderNotFound:
+      description: ORDER_NOT_FOUND; el pedido no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RouteNotFound:
+      description: ROUTE_NOT_FOUND; la ruta no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: DATA_CONFLICT; versión desactualizada, transición inválida, payload conflictivo o ruta no completable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unavailable:
+      description: PERSISTENCE_UNAVAILABLE; error técnico de base de datos sin revelar detalles SQL.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+        - error
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - FORBIDDEN
+            - ORDER_NOT_FOUND
+            - ROUTE_NOT_FOUND
+            - DATA_CONFLICT
+            - PERSISTENCE_UNAVAILABLE
+        message:
+          type: string
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    DeliveryOrder:
+      type: object
+      required:
+        - orderId
+        - routeId
+        - status
+        - version
+        - deliveredAt
+        - updatedAt
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        routeId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        status:
+          type: string
+          enum:
+            - pendiente
+            - asignado_a_ruta
+            - recogido
+            - en_camino
+            - entregado
+        version:
+          type: string
+          pattern: '^[1-9]\d*$'
+          description: Cadena decimal positiva preservando precisión BigInt.
+        deliveredAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    DeliveryStatusChangeRequest:
+      type: object
+      required:
+        - orderId
+        - newStatus
+        - expectedVersion
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        newStatus:
+          type: string
+          enum:
+            - recogido
+            - en_camino
+            - entregado
+        expectedVersion:
+          type: string
+          pattern: '^[1-9]\d*$'
+          description: Versión esperada del pedido como cadena decimal positiva.
+    DeliveryStatusChangeResponse:
+      type: object
+      required:
+        - orderId
+        - status
+        - version
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - recogido
+            - en_camino
+            - entregado
+        version:
+          type: string
+          pattern: '^[1-9]\d*$'
+    RouteCompletionRequest:
+      type: object
+      required:
+        - routeId
+      properties:
+        routeId:
+          type: string
+          format: uuid
+    RouteCompletionResponse:
+      type: object
+      required:
+        - routeId
+        - status
+      properties:
+        routeId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: completada
