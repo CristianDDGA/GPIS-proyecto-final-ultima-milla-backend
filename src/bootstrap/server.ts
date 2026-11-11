@@ -14,19 +14,23 @@ if (database) {
 }
 const app = database ? createPersistedApp(database, config.webOrigin) : createApp({ webOrigin: config.webOrigin });
 const server = app.listen(config.port, () => {
-  process.stdout.write(`API escuchando en http://localhost:${config.port}\n`);
-  process.stdout.write(database ? 'PostgreSQL conectado: zonas, pedidos, rutas y repartidores habilitados.\n' : 'Sin DATABASE_URL: solo /health habilitado.\n');
+  process.stdout.write(`API unificada escuchando en http://localhost:${config.port}\n`);
+  process.stdout.write(
+    database
+      ? 'PostgreSQL conectado: zonas, pedidos, rutas, operaciones de ruta, repartidores y entregas habilitados en un solo puerto.\n'
+      : 'Sin DATABASE_URL: solo /health habilitado.\n',
+  );
 });
-for (const signal of ['SIGINT','SIGTERM'] as const) {
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     server.close((error) => {
-      if (error) process.exitCode=1;
-      void database?.$disconnect().catch(() => { process.exitCode=1; });
+      if (error) process.exitCode = 1;
+      void database?.$disconnect().catch(() => { process.exitCode = 1; });
     });
   });
 }
 server.on('error', () => {
   process.stderr.write('No se pudo iniciar el servidor HTTP; revisa el puerto configurado.\n');
-  process.exitCode=1;
-  void database?.$disconnect().catch(() => { process.exitCode=1; });
+  process.exitCode = 1;
+  void database?.$disconnect().catch(() => { process.exitCode = 1; });
 });

@@ -56,6 +56,9 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
     for (const path of ['/health', '/zones', '/orders', '/routes', '/couriers']) {
       expect((await request(app).get(path)).status).toBe(200);
     }
+    // Entregas expuestas en el mismo servidor (consulta sin id existente responde 404 de dominio)
+    const missingDelivery = await request(app).get(`/delivery-orders/${randomUUID()}`);
+    expect(missingDelivery.status).toBe(404);
   });
 
   it('flujo completo: zona → pedidos → planificación → repartidor → asignación → ruta del repartidor', async () => {
