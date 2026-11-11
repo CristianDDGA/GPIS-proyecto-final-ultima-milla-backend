@@ -163,3 +163,4 @@ Resultado esperado (referencia de ejecución con datos sembrados):
 - Los scripts k6 no requieren `npm ci` ni dependencias adicionales: son JavaScript puro ejecutado por el binario `k6`.
 - Se respeta el congelamiento de dependencias (TypeScript 6.0.3, Prisma 7.10.1): no se agrega ninguna dependencia npm.
 - No se modifican `package-lock.json`, migraciones SQL, `create-app.ts`, módulos S1/S2/S3 ni el hash del paquete DB canónico.
+

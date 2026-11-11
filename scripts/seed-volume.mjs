@@ -67,26 +67,26 @@ const ZONES = [
 ];
 
 const COURIERS = [
-  { name: 'Carlos Mendoza',   capacity: 5 },
-  { name: 'Lucía Torres',     capacity: 4 },
-  { name: 'Andrés Vega',      capacity: 5 },
-  { name: 'María Suárez',     capacity: 4 },
-  { name: 'Pedro Alarcón',    capacity: 5 },
-  { name: 'Sofía Ramos',      capacity: 3 },
-  { name: 'Diego Herrera',    capacity: 5 },
-  { name: 'Valeria Mora',     capacity: 4 },
-  { name: 'Tomás Castillo',   capacity: 5 },
-  { name: 'Gabriela Ortiz',   capacity: 3 },
-  { name: 'Felipe Núñez',     capacity: 5 },
-  { name: 'Isabella Reyes',   capacity: 4 },
-  { name: 'Sebastián Luna',   capacity: 5 },
-  { name: 'Camila Jiménez',   capacity: 4 },
-  { name: 'Mateo Paredes',    capacity: 5 },
-  { name: 'Valentina Cruz',   capacity: 3 },
-  { name: 'Nicolás Flores',   capacity: 5 },
-  { name: 'Ana Guerrero',     capacity: 4 },
-  { name: 'Ricardo Peña',     capacity: 5 },
-  { name: 'Daniela Salazar',  capacity: 4 },
+  { name: 'Carlos Mendoza', capacity: 5 },
+  { name: 'Lucía Torres', capacity: 4 },
+  { name: 'Andrés Vega', capacity: 5 },
+  { name: 'María Suárez', capacity: 4 },
+  { name: 'Pedro Alarcón', capacity: 5 },
+  { name: 'Sofía Ramos', capacity: 3 },
+  { name: 'Diego Herrera', capacity: 5 },
+  { name: 'Valeria Mora', capacity: 4 },
+  { name: 'Tomás Castillo', capacity: 5 },
+  { name: 'Gabriela Ortiz', capacity: 3 },
+  { name: 'Felipe Núñez', capacity: 5 },
+  { name: 'Isabella Reyes', capacity: 4 },
+  { name: 'Sebastián Luna', capacity: 5 },
+  { name: 'Camila Jiménez', capacity: 4 },
+  { name: 'Mateo Paredes', capacity: 5 },
+  { name: 'Valentina Cruz', capacity: 3 },
+  { name: 'Nicolás Flores', capacity: 5 },
+  { name: 'Ana Guerrero', capacity: 4 },
+  { name: 'Ricardo Peña', capacity: 5 },
+  { name: 'Daniela Salazar', capacity: 4 },
 ];
 
 /** Horarios de entrega (América/Guayaquil): 08:00 a 18:00 en franjas de 1 hora */
@@ -235,3 +235,4 @@ async function main() {
 }
 
 main();
+
