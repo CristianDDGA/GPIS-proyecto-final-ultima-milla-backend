@@ -21,7 +21,10 @@
     "test:integration:postgres": "node --env-file-if-exists=.env scripts/run-postgres-integration.mjs",
     "postinstall": "prisma generate",
     "db:verify": "node --env-file-if-exists=.env scripts/verify-database-package.mjs",
-    "test:unit": "node --import=tsx --test test/unit/*.test.ts"
+    "test:unit": "node --import=tsx --test test/unit/*.test.ts",
+    "db:seed:volume": "node --env-file-if-exists=.env scripts/seed-volume.mjs",
+    "test:load": "k6 run scripts/k6/smoke.k6.js",
+    "test:stress": "k6 run scripts/k6/san-valentin-stress.k6.js"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
