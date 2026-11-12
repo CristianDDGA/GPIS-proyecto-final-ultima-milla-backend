@@ -21,7 +21,8 @@
     "test:integration:postgres": "node --env-file-if-exists=.env scripts/run-postgres-integration.mjs",
     "postinstall": "prisma generate",
     "db:verify": "node --env-file-if-exists=.env scripts/verify-database-package.mjs",
-    "test:unit": "node --import=tsx --test test/unit/*.test.ts"
+    "test:unit": "node --import=tsx --test test/unit/*.test.ts",
+    "test:security:zap": "node scripts/security/run-zap-baseline.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
