@@ -154,10 +154,8 @@ export class Route {
       throw new RouteIntegrityError('La ruta supera su capacidad por salida.');
     }
 
-    if (properties.stops) {
-      if (properties.stops.length !== occupiedSlots) {
-        throw new RouteIntegrityError('Las paradas vigentes no coinciden con la ocupación.');
-      }
+    if (properties.stops && properties.stops.length !== occupiedSlots) {
+      throw new RouteIntegrityError('Las paradas vigentes no coinciden con la ocupación.');
     }
 
     return new Route({

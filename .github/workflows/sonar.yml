@@ -44,6 +44,8 @@ jobs:
       - run: npm ci
         env:
           CYPRESS_INSTALL_BINARY: "0"
+      - name: Generate unit test coverage report
+        run: npm run test:unit:coverage
       - name: Validate server configuration
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
