@@ -19,6 +19,11 @@ export function createApp(dependencies: AppDependencies) {
   const app = express();
 
   app.disable('x-powered-by');
+  // Hallazgo ZAP 10021: impide el MIME sniffing de las respuestas JSON.
+  app.use((_request, response, next) => {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
+  });
   app.use((request, response, next) => {
     const origin = request.get('origin');
     const originAllowed = origin === dependencies.webOrigin;

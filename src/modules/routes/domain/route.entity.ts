@@ -1,5 +1,6 @@
-import { RouteIntegrityError } from './route.errors.js';
+import { RouteIntegrityError, RouteValidationError } from './route.errors.js';
 import { validateCapacityLimit, validatePagination, validateServiceDate, validateUuid } from './route.validation.js';
+export { POSTGRES_INTEGER_MAX } from './route.validation.js';
 
 export const ROUTE_STATUSES = ['planificada', 'asignada', 'en_curso', 'completada', 'cancelada'] as const;
 export type RouteStatus = typeof ROUTE_STATUSES[number];
@@ -60,6 +61,128 @@ export interface RouteListPage {
   readonly items: readonly RouteSummary[];
   readonly limit: number;
   readonly offset: number;
+}
+
+export interface NewRoute {
+  readonly zoneId: string;
+  readonly serviceDate: string;
+  readonly capacityLimit: number;
+}
+
+export interface RouteProperties extends NewRoute {
+  readonly id: string;
+  readonly status: RouteStatus;
+  readonly courierId?: string | null;
+  readonly occupiedSlots?: number;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly stops?: readonly RouteStop[];
+  readonly metadata?: Record<string, unknown>;
+}
+
+export class Route {
+  private _occupiedSlots: number;
+  private readonly _stops: RouteStop[];
+
+  private constructor(private readonly properties: RouteProperties) {
+    this._occupiedSlots = properties.occupiedSlots ?? 0;
+    this._stops = properties.stops ? [...properties.stops] : [];
+  }
+
+  get id(): string { return this.properties.id; }
+  get zoneId(): string { return this.properties.zoneId; }
+  get serviceDate(): string { return this.properties.serviceDate; }
+  get capacityLimit(): number { return this.properties.capacityLimit; }
+  get status(): RouteStatus { return this.properties.status; }
+  get courierId(): string | null { return this.properties.courierId ?? null; }
+  get occupiedSlots(): number { return this._occupiedSlots; }
+  get createdAt(): Date { return new Date(this.properties.createdAt); }
+  get updatedAt(): Date { return new Date(this.properties.updatedAt); }
+  get stops(): readonly RouteStop[] { return [...this._stops]; }
+  get metadata(): Record<string, unknown> { return { ...(this.properties.metadata ?? {}) }; }
+  get availableSlots(): number { return Math.max(0, this.properties.capacityLimit - this._occupiedSlots); }
+
+  canAcceptStop(): boolean {
+    return this._occupiedSlots < this.properties.capacityLimit;
+  }
+
+  addStop(stop: RouteStop): void {
+    if (this._occupiedSlots >= this.properties.capacityLimit) {
+      throw new RouteIntegrityError('La ruta supera su capacidad por salida.');
+    }
+    if (this._stops.some((s) => s.orderId === stop.orderId)) {
+      throw new RouteIntegrityError('Un pedido aparece dos veces en la ruta.');
+    }
+    this._stops.push(stop);
+    this._occupiedSlots += 1;
+  }
+
+  static prepare(properties: NewRoute): NewRoute {
+    const zoneId = validateUuid(properties.zoneId, 'zoneId');
+    const serviceDate = validateServiceDate(properties.serviceDate);
+
+    const today = new Date().toISOString().slice(0, 10);
+    if (serviceDate < today) {
+      throw new RouteValidationError('La fecha de servicio no puede ser una fecha pasada.');
+    }
+
+    const capacityLimit = validateCapacityLimit(properties.capacityLimit);
+    return { zoneId, serviceDate, capacityLimit };
+  }
+
+  static create(properties: RouteProperties): Route {
+    const prepared = Route.prepare(properties);
+    const id = validateUuid(properties.id, 'id');
+
+    if (!isRouteStatus(properties.status)) {
+      throw new RouteValidationError('Estado de ruta desconocido.');
+    }
+
+    if (
+      !(properties.createdAt instanceof Date) || !Number.isFinite(properties.createdAt.getTime()) ||
+      !(properties.updatedAt instanceof Date) || !Number.isFinite(properties.updatedAt.getTime()) ||
+      properties.updatedAt.getTime() < properties.createdAt.getTime()
+    ) {
+      throw new RouteValidationError('Los metadatos de fecha de la ruta son inválidos.');
+    }
+
+    const occupiedSlots = properties.occupiedSlots ?? 0;
+    if (!Number.isInteger(occupiedSlots) || occupiedSlots < 0) {
+      throw new RouteValidationError('Ocupación de ruta inválida.');
+    }
+    if (occupiedSlots > prepared.capacityLimit) {
+      throw new RouteIntegrityError('La ruta supera su capacidad por salida.');
+    }
+
+    if (properties.stops) {
+      if (properties.stops.length !== occupiedSlots) {
+        throw new RouteIntegrityError('Las paradas vigentes no coinciden con la ocupación.');
+      }
+    }
+
+    return new Route({
+      ...properties,
+      ...prepared,
+      id,
+      occupiedSlots,
+      createdAt: new Date(properties.createdAt),
+      updatedAt: new Date(properties.updatedAt),
+      metadata: properties.metadata ? { ...properties.metadata } : {},
+      stops: properties.stops ? [...properties.stops] : [],
+    });
+  }
+
+  toJSON(): RouteSummary {
+    return {
+      id: this.id,
+      zoneId: this.zoneId,
+      serviceDate: this.serviceDate,
+      capacityLimit: this.capacityLimit,
+      status: this.status,
+      courierId: this.courierId,
+      occupiedSlots: this.occupiedSlots,
+    };
+  }
 }
 
 function isRouteStatus(value: unknown): value is RouteStatus {
