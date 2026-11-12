@@ -23,7 +23,7 @@
     "db:verify": "node --env-file-if-exists=.env scripts/verify-database-package.mjs",
     
     "test:unit": "node --import=tsx --test test/unit/*.test.ts",
-    "test:unit:coverage": "node --import=tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info test/unit/*.test.ts",
+    "test:unit:coverage": "node -e \"import('node:fs').then(({ mkdirSync }) => mkdirSync('coverage', { recursive: true }))\" && node --import=tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info test/unit/*.test.ts",
 
     "db:seed:volume": "node --env-file-if-exists=.env scripts/seed-volume.mjs",
     "test:load": "k6 run scripts/k6/smoke.k6.js",
