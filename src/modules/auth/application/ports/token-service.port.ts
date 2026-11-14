@@ -8,6 +8,7 @@ export interface TokenClaims {
 }
 
 export interface TokenPayload extends TokenClaims {
+  readonly jti: string;
   readonly iat: number;
   readonly exp: number;
 }

@@ -5,6 +5,7 @@ import type { OrderRepository } from '../modules/orders/application/ports/order.
 import { createOrdersModule } from '../modules/orders/index.js';
 import { fallbackErrorHandler, jsonErrorHandler, notFoundHandler, requireJsonObject } from './json.middleware.js';
 import type { OrderZonePort } from '../modules/orders/application/ports/order-zone.port.js';
+import type { TokenRevocationStore } from '../modules/auth/application/ports/token-revocation.port.js';
 import type { TokenService } from '../modules/auth/application/ports/token-service.port.js';
 import { createRbacMiddleware } from './auth.middleware.js';
 
@@ -16,6 +17,7 @@ export interface AppDependencies {
   readonly orderZoneLookup?: OrderZonePort;
   readonly errorHandlers?: ReadonlyArray<ErrorRequestHandler>;
   readonly tokenService?: TokenService;
+  readonly tokenRevocationStore?: TokenRevocationStore;
 }
 
 export function createApp(dependencies: AppDependencies) {
@@ -50,7 +52,7 @@ export function createApp(dependencies: AppDependencies) {
   app.get('/health', (_request, response) => response.status(200).json({ status: 'ok' }));
 
   if (dependencies.tokenService) {
-    app.use(createRbacMiddleware(dependencies.tokenService));
+    app.use(createRbacMiddleware(dependencies.tokenService, dependencies.tokenRevocationStore));
   }
 
   const routers = [...(dependencies.routers ?? [])];

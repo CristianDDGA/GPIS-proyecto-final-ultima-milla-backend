@@ -124,4 +124,43 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
     expect(unknown.status).toBe(404);
     expectEnvelope(unknown.body, 'NOT_FOUND');
   });
+
+  it('POST /routes/:id/cancel cancela una ruta planificada (INT-08) y POST /auth/logout revoca el JWT en Postgres (AUT-05)', async () => {
+    const zone = await request(app).post('/zones').set('Authorization', `Bearer ${adminToken}`).send({ name: 'Zona Cancelación' });
+    expect(zone.status).toBe(201);
+    const order = await request(app)
+      .post('/orders')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ zoneId: zone.body.id, deliveryAddress: 'Calle Cancel 1', deliveryDate: serviceDate, deliveryTime: '11:00' });
+    expect(order.status).toBe(201);
+
+    const plan = await request(app)
+      .post('/route-plans')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({ serviceDate, capacityLimit: 4 });
+    expect(plan.status).toBe(200);
+    const routeId = plan.body.routeIds[0] as string;
+
+    const cancelled = await request(app).post(`/routes/${routeId}/cancel`).set('Authorization', `Bearer ${adminToken}`);
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body).toEqual({ routeId, status: 'cancelada' });
+
+    const routeDetail = await request(app).get(`/routes/${routeId}`).set('Authorization', `Bearer ${adminToken}`);
+    expect(routeDetail.status).toBe(200);
+    expect(routeDetail.body.status).toBe('cancelada');
+
+    const missingCancel = await request(app).post(`/routes/${randomUUID()}/cancel`).set('Authorization', `Bearer ${adminToken}`);
+    expect(missingCancel.status).toBe(404);
+    expectEnvelope(missingCancel.body, 'ROUTE_NOT_FOUND');
+
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: `logout-pg-${randomUUID()}@test.com`, password: 'Password123' });
+    expect(reg.status).toBe(201);
+    const userToken = reg.body.token as string;
+    expect((await request(app).get('/zones').set('Authorization', `Bearer ${userToken}`)).status).toBe(200);
+    expect((await request(app).post('/auth/logout').set('Authorization', `Bearer ${userToken}`)).status).toBe(200);
+    expect((await request(app).get('/zones').set('Authorization', `Bearer ${userToken}`)).status).toBe(401);
+  });
 });

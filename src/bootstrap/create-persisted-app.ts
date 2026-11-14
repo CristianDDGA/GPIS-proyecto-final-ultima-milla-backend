@@ -17,6 +17,7 @@ import { RequestActorContext } from '../modules/deliveries/infrastructure/contex
 import type { ActorContextPort } from '../modules/deliveries/application/ports/actor-context.port.js';
 import { createAuthModule } from '../modules/auth/index.js';
 import { PrismaAuthRepository } from '../modules/auth/infrastructure/postgres/prisma-auth.repository.js';
+import { PrismaTokenRevocationStore } from '../modules/auth/infrastructure/postgres/prisma-token-revocation.store.js';
 
 export interface PersistedAppOptions {
   readonly actorContext?: ActorContextPort;
@@ -48,6 +49,7 @@ export function createPersistedApp(
   });
   const auth = createAuthModule({
     repository: new PrismaAuthRepository(database),
+    revocationStore: new PrismaTokenRevocationStore(database),
     jwtSecret: options?.jwtSecret ?? process.env['JWT_SECRET'] ?? 'dev-only-jwt-secret-change-in-prod',
     ...(options?.jwtExpiresInSeconds !== undefined ? { jwtExpiresInSeconds: options.jwtExpiresInSeconds } : {}),
   });
@@ -55,6 +57,7 @@ export function createPersistedApp(
   return createApp({
     webOrigin,
     tokenService: auth.tokenService,
+    tokenRevocationStore: auth.revocationStore,
     zoneRepository: new PrismaZoneRepository(database),
     orderRepository: new PrismaOrderRepository(database, logisticaOrderSql),
     orderZoneLookup: new PrismaOrderZoneLookup(database),

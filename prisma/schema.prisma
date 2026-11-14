@@ -25,6 +25,15 @@ model app_users {
   @@schema("logistica")
 }
 
+model revoked_tokens {
+  jti        String   @id
+  expires_at DateTime @db.Timestamptz(6)
+  revoked_at DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+
+  @@index([expires_at], map: "revoked_tokens_expires_idx")
+  @@schema("logistica")
+}
+
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model couriers {
   id                  String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

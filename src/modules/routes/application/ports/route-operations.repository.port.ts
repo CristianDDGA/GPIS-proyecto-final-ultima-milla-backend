@@ -5,4 +5,5 @@ import type { RouteMoveCommand, StopOrderCommand } from '../../domain/route-oper
 export interface RouteOperationsRepository {
   moveOrder(command: RouteMoveCommand): Promise<{ readonly routeId: unknown }>;
   reorderStops(command: StopOrderCommand): Promise<{ readonly orderIds: unknown }>;
+  cancelRoute(routeId: string): Promise<void>;
 }

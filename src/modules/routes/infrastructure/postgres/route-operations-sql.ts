@@ -41,4 +41,9 @@ export const logisticaRouteOperationsSql = {
     return sql`SELECT order_id::text AS "orderId"
       FROM logistica.current_route_stops WHERE route_id = ${routeId}::uuid ORDER BY position`;
   },
+
+  cancelRoute(routeId: string): RouteSqlQuery {
+    return sql`SELECT count(*)::integer AS "done"
+      FROM logistica.cancel_route(${routeId}::uuid)`;
+  },
 };

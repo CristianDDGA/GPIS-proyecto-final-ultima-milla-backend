@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { AuthError } from '../../domain/auth.errors.js';
 import type { AppRole } from '../../domain/auth-user.entity.js';
 import type { TokenClaims, TokenPayload, TokenService } from '../../application/ports/token-service.port.js';
@@ -20,6 +20,7 @@ export class HmacJwtTokenService implements TokenService {
     const now = Math.floor(Date.now() / 1000);
     const payload: TokenPayload = {
       ...claims,
+      jti: randomUUID(),
       iat: now,
       exp: now + this.expiresInSeconds,
     };
@@ -64,6 +65,8 @@ export class HmacJwtTokenService implements TokenService {
     const record = parsed as Record<string, unknown>;
     const now = Math.floor(Date.now() / 1000);
     if (
+      typeof record['jti'] !== 'string' ||
+      record['jti'].length === 0 ||
       typeof record['sub'] !== 'string' ||
       typeof record['authSubject'] !== 'string' ||
       typeof record['role'] !== 'string' ||
@@ -78,6 +81,7 @@ export class HmacJwtTokenService implements TokenService {
     }
 
     return {
+      jti: record['jti'],
       sub: record['sub'],
       authSubject: record['authSubject'],
       role: record['role'] as AppRole,
