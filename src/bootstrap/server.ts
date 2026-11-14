@@ -12,7 +12,12 @@ if (database) {
     throw new Error('No se pudo conectar PostgreSQL. Revisa Docker y DATABASE_URL.');
   }
 }
-const app = database ? createPersistedApp(database, config.webOrigin) : createApp({ webOrigin: config.webOrigin });
+const app = database
+  ? createPersistedApp(database, config.webOrigin, {
+      jwtSecret: config.jwtSecret,
+      jwtExpiresInSeconds: config.jwtExpiresInSeconds,
+    })
+  : createApp({ webOrigin: config.webOrigin });
 const server = app.listen(config.port, () => {
   process.stdout.write(`API unificada escuchando en http://localhost:${config.port}\n`);
   process.stdout.write(

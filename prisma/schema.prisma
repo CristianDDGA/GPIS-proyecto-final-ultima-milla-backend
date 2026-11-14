@@ -10,13 +10,17 @@ datasource db {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model app_users {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  auth_subject String    @unique
-  role         String
-  is_active    Boolean   @default(true)
-  created_at   DateTime  @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  updated_at   DateTime  @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
-  couriers     couriers?
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  auth_subject  String    @unique
+  email         String?
+  password_hash String?
+  display_name  String?
+  role          String
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  updated_at    DateTime  @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  couriers      couriers?
+  orders        orders[]
 
   @@schema("logistica")
 }
@@ -90,6 +94,8 @@ model orders {
   delivered_at     DateTime?       @db.Timestamptz(6)
   created_at       DateTime        @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
   updated_at       DateTime        @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(6)
+  customer_user_id String?         @db.Uuid
+  app_users        app_users?      @relation(fields: [customer_user_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   order_events     order_events[]
   zones            zones           @relation(fields: [zone_id], references: [id], onUpdate: NoAction)
   outbox_events    outbox_events[]

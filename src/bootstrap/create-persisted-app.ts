@@ -13,10 +13,15 @@ import { PrismaAssignmentRepository } from '../modules/couriers/infrastructure/p
 import { createDeliveriesModule } from '../modules/deliveries/index.js';
 import { PrismaDeliveryRepository } from '../modules/deliveries/infrastructure/postgres/prisma-delivery.repository.js';
 import { StaticActorContext } from '../modules/deliveries/infrastructure/context/static-actor.context.js';
+import { RequestActorContext } from '../modules/deliveries/infrastructure/context/request-actor.context.js';
 import type { ActorContextPort } from '../modules/deliveries/application/ports/actor-context.port.js';
+import { createAuthModule } from '../modules/auth/index.js';
+import { PrismaAuthRepository } from '../modules/auth/infrastructure/postgres/prisma-auth.repository.js';
 
 export interface PersistedAppOptions {
   readonly actorContext?: ActorContextPort;
+  readonly jwtSecret?: string;
+  readonly jwtExpiresInSeconds?: number;
 }
 
 // Single API: zones, orders, routes, couriers, route-operations and deliveries share one server, one database client and one CORS policy.
@@ -35,24 +40,33 @@ export function createPersistedApp(
     couriers: new PrismaCourierRepository(database),
     assignments: new PrismaAssignmentRepository(database),
   });
-  const actorContext = options?.actorContext ?? new StaticActorContext(process.env['S3_DELIVERIES_ACTOR_ID'] ?? null);
+  const fallbackActorContext =
+    options?.actorContext ?? new StaticActorContext(process.env['S3_DELIVERIES_ACTOR_ID'] ?? null);
   const deliveries = createDeliveriesModule({
     repository: new PrismaDeliveryRepository(database),
-    actorContext,
+    actorContext: new RequestActorContext(fallbackActorContext),
+  });
+  const auth = createAuthModule({
+    repository: new PrismaAuthRepository(database),
+    jwtSecret: options?.jwtSecret ?? process.env['JWT_SECRET'] ?? 'dev-only-jwt-secret-change-in-prod',
+    ...(options?.jwtExpiresInSeconds !== undefined ? { jwtExpiresInSeconds: options.jwtExpiresInSeconds } : {}),
   });
 
   return createApp({
     webOrigin,
+    tokenService: auth.tokenService,
     zoneRepository: new PrismaZoneRepository(database),
     orderRepository: new PrismaOrderRepository(database, logisticaOrderSql),
     orderZoneLookup: new PrismaOrderZoneLookup(database),
     routers: [
+      { basePath: '/auth', router: auth.router },
       ...routes.routers,
       ...routeOperations.routers,
       { basePath: '/', router: couriers.router },
       { basePath: '/', router: deliveries.router },
     ],
     errorHandlers: [
+      auth.errorHandler,
       routes.errorHandler,
       routeOperations.errorHandler,
       couriers.errorHandler,

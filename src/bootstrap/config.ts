@@ -2,6 +2,8 @@ export interface AppConfig {
   readonly port: number;
   readonly webOrigin: string;
   readonly databaseUrl?: string;
+  readonly jwtSecret: string;
+  readonly jwtExpiresInSeconds: number;
 }
 
 export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
@@ -33,5 +35,20 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
       throw new Error('La API requiere una conexión PostgreSQL con el rol logistica_app.');
     }
   }
-  return { port, webOrigin, ...(databaseUrl ? { databaseUrl } : {}) };
+
+  const rawSecret = environment.JWT_SECRET;
+  if (rawSecret !== undefined && rawSecret.length < 16) {
+    throw new Error('JWT_SECRET debe tener al menos 16 caracteres.');
+  }
+  if (rawSecret === undefined && environment.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET es obligatorio en producción.');
+  }
+  const jwtSecret = rawSecret ?? 'dev-only-jwt-secret-change-in-prod';
+
+  const jwtExpiresInSeconds = Number(environment.JWT_EXPIRES_IN_SECONDS ?? '86400');
+  if (!Number.isInteger(jwtExpiresInSeconds) || jwtExpiresInSeconds < 60) {
+    throw new Error('JWT_EXPIRES_IN_SECONDS debe ser un entero mayor o igual a 60.');
+  }
+
+  return { port, webOrigin, jwtSecret, jwtExpiresInSeconds, ...(databaseUrl ? { databaseUrl } : {}) };
 }

@@ -115,9 +115,35 @@ export const options = {
 
 // ─── Variables compartidas (cargadas en setup) ────────────────────────────────
 export function setup() {
+  let token = __ENV.AUTH_TOKEN || '';
+  if (!token) {
+    const email = __ENV.AUTH_EMAIL || `k6-stress-${Date.now()}@ultima-milla.test`;
+    const password = __ENV.AUTH_PASSWORD || 'K6StressPassword2026!';
+    const authHeaders = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    let authRes = http.post(
+      `${BASE_URL}/auth/register`,
+      JSON.stringify({ email, password, displayName: 'K6 Stress Client' }),
+      { headers: authHeaders, timeout: '10s' },
+    );
+    if (authRes.status === 409) {
+      authRes = http.post(
+        `${BASE_URL}/auth/login`,
+        JSON.stringify({ email, password }),
+        { headers: authHeaders, timeout: '10s' },
+      );
+    }
+    try {
+      token = JSON.parse(authRes.body).token || '';
+    } catch {
+      token = '';
+    }
+  }
+
   // Consultar zonas disponibles; si no hay, el test continúa sin crearlas.
   const res = http.get(`${BASE_URL}/zones`, {
-    headers: { 'Accept': 'application/json' },
+    headers: token
+      ? { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+      : { 'Accept': 'application/json' },
     timeout: '10s',
   });
   let zoneIds = [];
@@ -144,7 +170,7 @@ export function setup() {
     console.log(`San Valentín Stress — ${zoneIds.length} zonas disponibles. Fecha: ${SIM_DATE}`);
   }
 
-  return { zoneIds };
+  return { zoneIds, token };
 }
 
 // ─── Escenario 1: Cliente registrando pedido ──────────────────────────────────
@@ -152,6 +178,7 @@ export function clienteFlow(data) {
   const headers = {
     'Content-Type': 'application/json',
     'Accept':       'application/json',
+    ...(data && data.token ? { 'Authorization': `Bearer ${data.token}` } : {}),
   };
 
   group('cliente: registrar pedido San Valentín', () => {
@@ -200,8 +227,11 @@ export function clienteFlow(data) {
 }
 
 // ─── Escenario 2: Repartidor consultando rutas y zonas ───────────────────────
-export function repartidorFlow() {
-  const headers = { 'Accept': 'application/json' };
+export function repartidorFlow(data) {
+  const headers = {
+    'Accept': 'application/json',
+    ...(data && data.token ? { 'Authorization': `Bearer ${data.token}` } : {}),
+  };
 
   group('repartidor: consultar zonas y pedidos de su zona', () => {
     // Consulta de zonas
@@ -247,8 +277,11 @@ export function repartidorFlow() {
 }
 
 // ─── Escenario 3: Administrador revisando estado general ─────────────────────
-export function adminFlow() {
-  const headers = { 'Accept': 'application/json' };
+export function adminFlow(data) {
+  const headers = {
+    'Accept': 'application/json',
+    ...(data && data.token ? { 'Authorization': `Bearer ${data.token}` } : {}),
+  };
 
   group('admin: health check y listados', () => {
     // Health
