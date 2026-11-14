@@ -9,7 +9,8 @@ export class PrismaTokenRevocationStore implements TokenRevocationStore {
     try {
       const expiresAt = new Date(expSeconds * 1000).toISOString();
       await this.database.$queryRaw`
-        SELECT logistica.revoke_token(${jti}::text, ${expiresAt}::timestamptz)
+        SELECT count(*)::integer AS "done"
+        FROM logistica.revoke_token(${jti}::text, ${expiresAt}::timestamptz)
       `;
     } catch {
       throw new AuthError('PERSISTENCE_UNAVAILABLE');
