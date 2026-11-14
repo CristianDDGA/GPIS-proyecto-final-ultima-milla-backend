@@ -32,6 +32,8 @@ ENDPOINTS = [
     '/couriers?available=' + urllib.parse.quote("true' OR '1'='1"),
 ]
 POST_ENDPOINTS = [
+    ('/auth/login', {'email': "' OR 1=1--", 'password': 'invalid'}),
+    ('/auth/register', {'email': 'zap-probe@example.com', 'password': '123', 'displayName': '<script>alert(1)</script>'}),
     ('/orders', {'zoneId': "' OR 1=1--", 'lat': "1;DROP TABLE x", 'lng': 'NaN'}),
     ('/zones', {'name': "'; SELECT pg_sleep(5);--"}),
     ('/couriers', {'name': "' OR 1=1--"}),

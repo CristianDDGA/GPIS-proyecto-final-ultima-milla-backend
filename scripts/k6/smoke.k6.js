@@ -44,9 +44,32 @@ export const options = {
   },
 };
 
+// ─── Setup: autenticación ──────────────────────────────────────────────────────
+export function setup() {
+  if (__ENV.AUTH_TOKEN) {
+    return { token: __ENV.AUTH_TOKEN };
+  }
+  const email = __ENV.AUTH_EMAIL || `k6-smoke-${Date.now()}@ultima-milla.test`;
+  const password = __ENV.AUTH_PASSWORD || 'K6SmokePassword2026!';
+  const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  let res = http.post(`${BASE_URL}/auth/register`, JSON.stringify({ email, password, displayName: 'K6 Smoke' }), { headers });
+  if (res.status === 409) {
+    res = http.post(`${BASE_URL}/auth/login`, JSON.stringify({ email, password }), { headers });
+  }
+  try {
+    const body = JSON.parse(res.body);
+    return { token: body.token || '' };
+  } catch {
+    return { token: '' };
+  }
+}
+
 // ─── Escenario ────────────────────────────────────────────────────────────────
-export default function smokeTest() {
+export default function smokeTest(data) {
   const headers = { 'Accept': 'application/json' };
+  const authHeaders = data && data.token
+    ? { ...headers, 'Authorization': `Bearer ${data.token}` }
+    : headers;
 
   // GET /health
   {
@@ -66,7 +89,7 @@ export default function smokeTest() {
 
   // GET /zones
   {
-    const res = http.get(`${BASE_URL}/zones`, { headers, tags: { name: 'zones' } });
+    const res = http.get(`${BASE_URL}/zones`, { headers: authHeaders, tags: { name: 'zones' } });
     latencyZones.add(res.timings.duration);
     const ok = check(res, {
       'zones: status 200':        (r) => r.status === 200,
@@ -84,7 +107,7 @@ export default function smokeTest() {
 
   // GET /orders
   {
-    const res = http.get(`${BASE_URL}/orders`, { headers, tags: { name: 'orders' } });
+    const res = http.get(`${BASE_URL}/orders`, { headers: authHeaders, tags: { name: 'orders' } });
     latencyOrders.add(res.timings.duration);
     const ok = check(res, {
       'orders: status 200':        (r) => r.status === 200,

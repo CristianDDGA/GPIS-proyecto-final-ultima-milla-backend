@@ -3,9 +3,11 @@ import request from 'supertest';
 import { createApp } from '../../src/bootstrap/create-app.js';
 import { createPersistedApp } from '../../src/bootstrap/create-persisted-app.js';
 import { createDatabaseClient } from '../../src/bootstrap/database.js';
+import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypto/hmac-jwt.token-service.js';
 import { realDatabase, resetTestData } from './database.fixture.js';
 
 const WEB_ORIGIN = 'http://127.0.0.1:5173';
+const TEST_JWT_SECRET = 'integration-test-jwt-secret-1234';
 
 function expectEnvelope(body: Record<string, unknown>, code: string): void {
   expect(body['code']).toBe(code);
@@ -44,7 +46,15 @@ const describeReal = realDatabase ? describe : describe.skip;
 
 describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
   const database = realDatabase ? createDatabaseClient(process.env.TEST_DATABASE_URL!) : undefined;
-  const app = database ? createPersistedApp(database, WEB_ORIGIN) : createApp({ webOrigin: WEB_ORIGIN });
+  const app = database
+    ? createPersistedApp(database, WEB_ORIGIN, { jwtSecret: TEST_JWT_SECRET })
+    : createApp({ webOrigin: WEB_ORIGIN });
+  const adminToken = new HmacJwtTokenService(TEST_JWT_SECRET).sign({
+    sub: '30000000-0000-4000-8000-000000000001',
+    role: 'personal',
+    authSubject: 'demo-personal',
+    courierId: null,
+  });
   const serviceDate = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date(Date.now() + 3 * 86_400_000));
@@ -52,61 +62,65 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
   beforeEach(() => { resetTestData(); });
   afterAll(async () => { await database?.$disconnect(); });
 
-  it('expone zonas, pedidos, rutas y repartidores en el mismo servidor', async () => {
-    for (const path of ['/health', '/zones', '/orders', '/routes', '/couriers']) {
-      expect((await request(app).get(path)).status).toBe(200);
+  it('expone zonas, pedidos, rutas y repartidores en el mismo servidor (protegidos por JWT)', async () => {
+    expect((await request(app).get('/health')).status).toBe(200);
+    for (const path of ['/zones', '/orders', '/routes', '/couriers']) {
+      expect((await request(app).get(path)).status).toBe(401);
+      expect((await request(app).get(path).set('Authorization', `Bearer ${adminToken}`)).status).toBe(200);
     }
     // Entregas expuestas en el mismo servidor (consulta sin id existente responde 404 de dominio)
-    const missingDelivery = await request(app).get(`/delivery-orders/${randomUUID()}`);
+    const missingDelivery = await request(app)
+      .get(`/delivery-orders/${randomUUID()}`)
+      .set('Authorization', `Bearer ${adminToken}`);
     expect(missingDelivery.status).toBe(404);
   });
 
   it('flujo completo: zona → pedidos → planificación → repartidor → asignación → ruta del repartidor', async () => {
-    const zone = await request(app).post('/zones').send({ name: 'Zona integración' });
+    const zone = await request(app).post('/zones').set('Authorization', `Bearer ${adminToken}`).send({ name: 'Zona integración' });
     expect(zone.status).toBe(201);
     for (const time of ['09:00', '10:00']) {
-      const order = await request(app).post('/orders')
+      const order = await request(app).post('/orders').set('Authorization', `Bearer ${adminToken}`)
         .send({ zoneId: zone.body.id, deliveryAddress: `Calle ${time}`, deliveryDate: serviceDate, deliveryTime: time });
       expect(order.status).toBe(201);
     }
 
-    const plan = await request(app).post('/route-plans').set('Idempotency-Key', randomUUID())
+    const plan = await request(app).post('/route-plans').set('Authorization', `Bearer ${adminToken}`).set('Idempotency-Key', randomUUID())
       .send({ serviceDate, capacityLimit: 4 });
     expect(plan.status).toBe(200);
     expect(plan.body.routeIds).toHaveLength(1);
     const routeId = plan.body.routeIds[0] as string;
 
-    const courier = await request(app).post('/couriers').send({ displayName: 'Repartidor integración', maxOrdersPerTrip: 4 });
+    const courier = await request(app).post('/couriers').set('Authorization', `Bearer ${adminToken}`).send({ displayName: 'Repartidor integración', maxOrdersPerTrip: 4 });
     expect(courier.status).toBe(201);
-    expect((await request(app).patch(`/couriers/${courier.body.id}/availability`).send({ isAvailable: true })).status).toBe(200);
+    expect((await request(app).patch(`/couriers/${courier.body.id}/availability`).set('Authorization', `Bearer ${adminToken}`).send({ isAvailable: true })).status).toBe(200);
 
-    const assignment = await request(app).post('/courier-assignments').send({ routeId, courierId: courier.body.id });
+    const assignment = await request(app).post('/courier-assignments').set('Authorization', `Bearer ${adminToken}`).send({ routeId, courierId: courier.body.id });
     expect(assignment.status).toBe(200);
 
-    const route = await request(app).get(`/routes/${routeId}`);
+    const route = await request(app).get(`/routes/${routeId}`).set('Authorization', `Bearer ${adminToken}`);
     expect(route.status).toBe(200);
     expect(route.body).toMatchObject({ courierId: courier.body.id, occupiedSlots: 2 });
 
-    const courierRoute = await request(app).get(`/couriers/${courier.body.id}/route`);
+    const courierRoute = await request(app).get(`/couriers/${courier.body.id}/route`).set('Authorization', `Bearer ${adminToken}`);
     expect(courierRoute.status).toBe(200);
     expect(courierRoute.body.item).not.toBeNull();
   });
 
   it('cada módulo conserva su sobre de errores dentro del servidor unificado', async () => {
-    const malformedPlan = await request(app).post('/route-plans').set('Idempotency-Key', randomUUID())
+    const malformedPlan = await request(app).post('/route-plans').set('Authorization', `Bearer ${adminToken}`).set('Idempotency-Key', randomUUID())
       .set('Content-Type', 'application/json').send('{"serviceDate":');
     expect(malformedPlan.status).toBe(400);
     expectEnvelope(malformedPlan.body, 'VALIDATION_ERROR');
 
-    const malformedCourier = await request(app).post('/couriers').set('Content-Type', 'application/json').send('{"x":');
+    const malformedCourier = await request(app).post('/couriers').set('Authorization', `Bearer ${adminToken}`).set('Content-Type', 'application/json').send('{"x":');
     expect(malformedCourier.status).toBe(400);
     expectEnvelope(malformedCourier.body, 'VALIDATION_ERROR');
 
-    const missingRoute = await request(app).get(`/routes/${randomUUID()}`);
+    const missingRoute = await request(app).get(`/routes/${randomUUID()}`).set('Authorization', `Bearer ${adminToken}`);
     expect(missingRoute.status).toBe(404);
     expectEnvelope(missingRoute.body, 'ROUTE_NOT_FOUND');
 
-    const unknown = await request(app).get('/no-existe');
+    const unknown = await request(app).get('/no-existe').set('Authorization', `Bearer ${adminToken}`);
     expect(unknown.status).toBe(404);
     expectEnvelope(unknown.body, 'NOT_FOUND');
   });
