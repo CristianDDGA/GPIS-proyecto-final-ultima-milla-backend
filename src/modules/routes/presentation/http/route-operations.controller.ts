@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type { MoveOrderUseCase } from '../../application/use-cases/move-order.use-case.js';
 import type { ReorderStopsUseCase } from '../../application/use-cases/reorder-stops.use-case.js';
 import type { PlaceLateOrderUseCase } from '../../application/use-cases/place-late-order.use-case.js';
+import type { CancelRouteUseCase } from '../../application/use-cases/cancel-route.use-case.js';
 import {
   RouteConflictError,
   RouteNotFoundError,
@@ -23,7 +24,8 @@ export class RouteOperationsController {
   constructor(
     private readonly moveOrderUseCase: MoveOrderUseCase,
     private readonly reorderStopsUseCase: ReorderStopsUseCase,
-    private readonly placeLateOrderUseCase: PlaceLateOrderUseCase
+    private readonly placeLateOrderUseCase: PlaceLateOrderUseCase,
+    private readonly cancelRouteUseCase: CancelRouteUseCase,
   ) {}
 
   async move(request: Request, response: Response): Promise<void> {
@@ -62,6 +64,15 @@ export class RouteOperationsController {
           ? { orderId: result.orderId, status: result.status, routeId: result.routeId }
           : { orderId: result.orderId, status: result.status, reason: result.reason }
       );
+    } catch (error: unknown) {
+      handleError(error, response);
+    }
+  }
+
+  async cancel(request: Request, response: Response): Promise<void> {
+    try {
+      const result = await this.cancelRouteUseCase.execute({ routeId: request.params['id'] });
+      response.status(200).json(result);
     } catch (error: unknown) {
       handleError(error, response);
     }

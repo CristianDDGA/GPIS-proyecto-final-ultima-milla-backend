@@ -1,5 +1,6 @@
 import { Router, type ErrorRequestHandler, type Request, type Response } from 'express';
 import type { AuthUseCases } from '../../application/auth.use-cases.js';
+import type { TokenRevocationStore } from '../../application/ports/token-revocation.port.js';
 import type { TokenPayload, TokenService } from '../../application/ports/token-service.port.js';
 import { AuthError, type AuthErrorCode } from '../../domain/auth.errors.js';
 
@@ -21,7 +22,11 @@ function bodyObject(request: Request): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function extractBearerToken(request: Request, tokens: TokenService): TokenPayload {
+async function extractBearerToken(
+  request: Request,
+  tokens: TokenService,
+  revocationStore: TokenRevocationStore,
+): Promise<TokenPayload> {
   const header = request.get('authorization');
   if (!header) {
     throw new AuthError('UNAUTHORIZED');
@@ -30,7 +35,11 @@ function extractBearerToken(request: Request, tokens: TokenService): TokenPayloa
   if (!match?.[1]) {
     throw new AuthError('UNAUTHORIZED', 'Cabecera Authorization Bearer inválida.');
   }
-  return tokens.verify(match[1]);
+  const payload = tokens.verify(match[1]);
+  if (await revocationStore.isRevoked(payload.jti)) {
+    throw new AuthError('UNAUTHORIZED', 'El token de acceso ha sido revocado.');
+  }
+  return payload;
 }
 
 export function sendAuthError(error: unknown, response: Response): void {
@@ -62,7 +71,11 @@ export const authErrorHandler: ErrorRequestHandler = (error: unknown, request, r
   sendAuthError(error, response);
 };
 
-export function createAuthRouter(useCases: AuthUseCases, tokens: TokenService): Router {
+export function createAuthRouter(
+  useCases: AuthUseCases,
+  tokens: TokenService,
+  revocationStore: TokenRevocationStore,
+): Router {
   const router = Router();
 
   function route(operation: (request: Request, response: Response) => Promise<void>) {
@@ -99,7 +112,7 @@ export function createAuthRouter(useCases: AuthUseCases, tokens: TokenService): 
   router.post(
     '/users',
     route(async (request, response) => {
-      const claims = extractBearerToken(request, tokens);
+      const claims = await extractBearerToken(request, tokens, revocationStore);
       const input = bodyObject(request);
       const user = await useCases.registerByAdmin(
         { role: claims.role },
@@ -117,9 +130,18 @@ export function createAuthRouter(useCases: AuthUseCases, tokens: TokenService): 
   router.get(
     '/me',
     route(async (request, response) => {
-      const claims = extractBearerToken(request, tokens);
+      const claims = await extractBearerToken(request, tokens, revocationStore);
       const user = await useCases.getMe(claims.sub);
       response.status(200).json({ user });
+    }),
+  );
+
+  router.post(
+    '/logout',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      await useCases.logout(claims.jti, claims.exp);
+      response.status(200).json({ ok: true });
     }),
   );
 

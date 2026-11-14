@@ -10,6 +10,7 @@ import {
 import { AuthError } from '../../src/modules/auth/domain/auth.errors.js';
 import { ScryptPasswordHasher } from '../../src/modules/auth/infrastructure/crypto/scrypt-password-hasher.js';
 import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypto/hmac-jwt.token-service.js';
+import { InMemoryTokenRevocationStore } from '../../src/modules/auth/infrastructure/crypto/in-memory-token-revocation.store.js';
 
 describe('Auth Domain & Crypto Unit Tests', () => {
   test('valida y normaliza correo, contraseña, nombre y los 3 roles', () => {
@@ -57,6 +58,8 @@ describe('Auth Domain & Crypto Unit Tests', () => {
     const payload = tokens.verify(jwt);
     assert.equal(payload.sub, '30000000-0000-4000-8000-000000000001');
     assert.equal(payload.role, 'personal');
+    assert.equal(typeof payload.jti, 'string');
+    assert.ok(payload.jti.length > 0);
 
     const parts = jwt.split('.');
     const tampered = `${parts[0]}.${parts[1]}.firma_falsa`;
@@ -70,5 +73,13 @@ describe('Auth Domain & Crypto Unit Tests', () => {
       courierId: null,
     });
     assert.throws(() => tokens.verify(expiredJwt), (e: unknown) => e instanceof AuthError && e.code === 'UNAUTHORIZED');
+  });
+
+  test('InMemoryTokenRevocationStore registra y consulta tokens revocados', async () => {
+    const store = new InMemoryTokenRevocationStore();
+    const jti = 'jti-test-123';
+    assert.equal(await store.isRevoked(jti), false);
+    await store.revoke(jti, Math.floor(Date.now() / 1000) + 3600);
+    assert.equal(await store.isRevoked(jti), true);
   });
 });

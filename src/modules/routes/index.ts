@@ -17,6 +17,7 @@ import type { LatePlacementRepository } from './application/ports/late-placement
 import { MoveOrderUseCase } from './application/use-cases/move-order.use-case.js';
 import { ReorderStopsUseCase } from './application/use-cases/reorder-stops.use-case.js';
 import { PlaceLateOrderUseCase } from './application/use-cases/place-late-order.use-case.js';
+import { CancelRouteUseCase } from './application/use-cases/cancel-route.use-case.js';
 import { RouteOperationsController } from './presentation/http/route-operations.controller.js';
 import {
   LATE_ORDER_PLACEMENTS_PATH,
@@ -35,6 +36,7 @@ export * from './application/ports/late-placement.repository.port.js';
 export * from './application/use-cases/move-order.use-case.js';
 export * from './application/use-cases/reorder-stops.use-case.js';
 export * from './application/use-cases/place-late-order.use-case.js';
+export * from './application/use-cases/cancel-route.use-case.js';
 export * from './presentation/http/route-operations.controller.js';
 export * from './presentation/http/route-operations.router.js';
 export * from './domain/route.errors.js';
@@ -62,6 +64,7 @@ export interface RouteOperationsModule {
     readonly moveOrder: MoveOrderUseCase;
     readonly reorderStops: ReorderStopsUseCase;
     readonly placeLateOrder: PlaceLateOrderUseCase;
+    readonly cancelRoute: CancelRouteUseCase;
   };
 }
 
@@ -73,7 +76,8 @@ export function createRouteOperationsModule(repositories: {
   const moveOrder = new MoveOrderUseCase(repositories.operations);
   const reorderStops = new ReorderStopsUseCase(repositories.operations);
   const placeLateOrder = new PlaceLateOrderUseCase(repositories.latePlacements);
-  const controller = new RouteOperationsController(moveOrder, reorderStops, placeLateOrder);
+  const cancelRoute = new CancelRouteUseCase(repositories.operations);
+  const controller = new RouteOperationsController(moveOrder, reorderStops, placeLateOrder, cancelRoute);
   return {
     routers: [
       { basePath: ROUTE_MOVES_PATH, router: createRouteMoveRouter(controller) },
@@ -81,7 +85,7 @@ export function createRouteOperationsModule(repositories: {
       { basePath: LATE_ORDER_PLACEMENTS_PATH, router: createLatePlacementRouter(controller) },
     ],
     errorHandler: routeOperationsJsonErrorHandler,
-    useCases: { moveOrder, reorderStops, placeLateOrder },
+    useCases: { moveOrder, reorderStops, placeLateOrder, cancelRoute },
   };
 }
 

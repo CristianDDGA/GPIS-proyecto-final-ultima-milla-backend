@@ -95,4 +95,18 @@ export class PrismaRouteOperationsRepository implements RouteOperationsRepositor
       throwRoutePersistenceError(error, { validation: OPERATION_VALIDATION, conflict: OPERATION_CONFLICT });
     }
   }
+
+  async cancelRoute(routeId: string): Promise<void> {
+    try {
+      await this.database.$transaction(async (client) => {
+        if (!(await exists(client, operationsSql.routeExists(routeId)))) throw new RouteNotFoundError();
+        await runCommand(client, operationsSql.cancelRoute(routeId));
+      });
+    } catch (error: unknown) {
+      throwRoutePersistenceError(error, {
+        validation: OPERATION_VALIDATION,
+        conflict: 'La ruta no se puede cancelar porque ya inició la recogida o está cerrada.',
+      });
+    }
+  }
 }

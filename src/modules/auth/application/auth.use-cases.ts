@@ -9,6 +9,7 @@ import {
 } from '../domain/auth-user.entity.js';
 import type { AuthRepository } from './ports/auth.repository.port.js';
 import type { PasswordHasher } from './ports/password-hasher.port.js';
+import type { TokenRevocationStore } from './ports/token-revocation.port.js';
 import type { TokenService } from './ports/token-service.port.js';
 
 export interface AuthSessionResult {
@@ -23,6 +24,7 @@ export interface AuthUseCases {
     input: { email: unknown; password: unknown; role: unknown; displayName?: unknown },
   ): Promise<AuthUser>;
   login(input: { email: unknown; password: unknown }): Promise<AuthSessionResult>;
+  logout(jti: string, expSeconds: number): Promise<void>;
   getMe(userId: string): Promise<AuthUser>;
 }
 
@@ -30,6 +32,7 @@ export function createAuthUseCases(
   repository: AuthRepository,
   hasher: PasswordHasher,
   tokens: TokenService,
+  revocationStore: TokenRevocationStore,
 ): AuthUseCases {
   function issueSession(user: AuthUser): AuthSessionResult {
     const token = tokens.sign({
@@ -100,6 +103,10 @@ export function createAuthUseCases(
         courierId: record.courierId,
       };
       return issueSession(user);
+    },
+
+    async logout(jti, expSeconds) {
+      await revocationStore.revoke(jti, expSeconds);
     },
 
     async getMe(userId) {

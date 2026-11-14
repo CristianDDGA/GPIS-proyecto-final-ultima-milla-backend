@@ -2,6 +2,7 @@ import { Router } from 'express';
 import request from 'supertest';
 import { createApp } from '../../src/bootstrap/create-app.js';
 import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypto/hmac-jwt.token-service.js';
+import { InMemoryTokenRevocationStore } from '../../src/modules/auth/infrastructure/crypto/in-memory-token-revocation.store.js';
 import { RequestActorContext } from '../../src/modules/deliveries/infrastructure/context/request-actor.context.js';
 import { StaticActorContext } from '../../src/modules/deliveries/infrastructure/context/static-actor.context.js';
 
@@ -31,6 +32,7 @@ describe('RBAC & RequestActorContext Integration (in-memory)', () => {
   stubRouter.get('/orders', (_req, res) => res.status(200).json({ ok: true }));
   stubRouter.post('/route-plans', (_req, res) => res.status(200).json({ ok: true }));
   stubRouter.get('/routes', (_req, res) => res.status(200).json({ ok: true }));
+  stubRouter.post('/routes/:id/cancel', (_req, res) => res.status(200).json({ ok: true }));
   stubRouter.post('/couriers', (_req, res) => res.status(201).json({ ok: true }));
   stubRouter.get('/couriers/:id/route', (_req, res) => res.status(200).json({ ok: true }));
   stubRouter.patch('/couriers/:id/availability', (_req, res) => res.status(200).json({ ok: true }));
@@ -38,9 +40,11 @@ describe('RBAC & RequestActorContext Integration (in-memory)', () => {
     res.status(200).json({ actor: actorContext.getCurrentActor() });
   });
 
+  const revocationStore = new InMemoryTokenRevocationStore();
   const app = createApp({
     webOrigin: 'http://127.0.0.1:5173',
     tokenService: tokens,
+    tokenRevocationStore: revocationStore,
     routers: [{ basePath: '/', router: stubRouter }],
   });
 
@@ -82,7 +86,20 @@ describe('RBAC & RequestActorContext Integration (in-memory)', () => {
   test('rol personal (admin): accede a todos los endpoints operativos', async () => {
     expect((await request(app).post('/zones').set('Authorization', `Bearer ${adminToken}`).send({})).status).toBe(201);
     expect((await request(app).post('/route-plans').set('Authorization', `Bearer ${adminToken}`).send({})).status).toBe(200);
+    expect((await request(app).post('/routes/11111111-1111-4111-8111-111111111111/cancel').set('Authorization', `Bearer ${adminToken}`)).status).toBe(200);
     expect((await request(app).post('/couriers').set('Authorization', `Bearer ${adminToken}`).send({})).status).toBe(201);
     expect((await request(app).get(`/couriers/${OTHER_COURIER_ID}/route`).set('Authorization', `Bearer ${adminToken}`)).status).toBe(200);
+  });
+
+  test('POST /routes/:id/cancel rechaza cliente y repartidor (403) y rechaza token revocado (401)', async () => {
+    const routeId = '11111111-1111-4111-8111-111111111111';
+    expect((await request(app).post(`/routes/${routeId}/cancel`).set('Authorization', `Bearer ${customerToken}`)).status).toBe(403);
+    expect((await request(app).post(`/routes/${routeId}/cancel`).set('Authorization', `Bearer ${driverToken}`)).status).toBe(403);
+
+    const tempToken = tokens.sign({ sub: CUSTOMER_ID, role: 'cliente', authSubject: 'temp@test', courierId: null });
+    expect((await request(app).get('/zones').set('Authorization', `Bearer ${tempToken}`)).status).toBe(200);
+    const claims = tokens.verify(tempToken);
+    await revocationStore.revoke(claims.jti, claims.exp);
+    expect((await request(app).get('/zones').set('Authorization', `Bearer ${tempToken}`)).status).toBe(401);
   });
 });

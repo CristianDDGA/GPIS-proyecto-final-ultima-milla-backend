@@ -34,6 +34,11 @@ export interface StopOrderResult {
   readonly orderIds: readonly string[];
 }
 
+export interface CancelRouteResult {
+  readonly routeId: string;
+  readonly status: 'cancelada';
+}
+
 function integrity(condition: boolean, message: string): void {
   if (!condition) throw new RouteIntegrityError(message);
 }
@@ -104,5 +109,9 @@ export const RouteOperations = {
     integrity(result['status'] === 'pendiente' && result['reason'] === LATE_PLACEMENT_PENDING_REASON,
       'La incorporación tardía devolvió un estado desconocido.');
     return { orderId, status: 'pendiente', reason: LATE_PLACEMENT_PENDING_REASON };
+  },
+
+  prepareCancel(input: { readonly routeId: unknown }): string {
+    return validateUuid(input.routeId, 'id');
   },
 };

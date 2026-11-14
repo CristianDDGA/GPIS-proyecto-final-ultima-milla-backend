@@ -20,6 +20,9 @@ export function createStopOrderRouter(controller: RouteOperationsController): Ro
   router.put('/:id/stop-order', (request, response) => {
     void controller.reorder(request, response);
   });
+  router.post('/:id/cancel', (request, response) => {
+    void controller.cancel(request, response);
+  });
   return router;
 }
 

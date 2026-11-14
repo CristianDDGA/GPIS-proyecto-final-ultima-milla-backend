@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Request, RequestHandler, Response } from 'express';
+import type { TokenRevocationStore } from '../modules/auth/application/ports/token-revocation.port.js';
 import type { TokenPayload, TokenService } from '../modules/auth/application/ports/token-service.port.js';
 import type { AppRole } from '../modules/auth/domain/auth-user.entity.js';
 import { AuthError } from '../modules/auth/domain/auth.errors.js';
@@ -61,7 +62,7 @@ function resolvePolicy(method: string, path: string): RoutePolicy | null {
 
   if (path === '/routes' || path.startsWith('/routes/')) {
     if (method === 'GET') return { roles: ['personal', 'repartidor'] };
-    if (method === 'PUT') return { roles: ['personal'] };
+    if (method === 'PUT' || method === 'POST') return { roles: ['personal'] };
   }
 
   if (COURIER_AVAILABILITY_RE.test(path) && method === 'PATCH') {
@@ -90,7 +91,10 @@ function resolvePolicy(method: string, path: string): RoutePolicy | null {
   return null;
 }
 
-export function createRbacMiddleware(tokens: TokenService): RequestHandler {
+export function createRbacMiddleware(
+  tokens: TokenService,
+  revocationStore?: TokenRevocationStore,
+): RequestHandler {
   return (request, response, next) => {
     if (isPublicRoute(request.method, request.path)) {
       next();
@@ -106,27 +110,45 @@ export function createRbacMiddleware(tokens: TokenService): RequestHandler {
       return;
     }
 
-    const policy = resolvePolicy(request.method, request.path);
-    if (policy !== null) {
-      if (!policy.roles.includes(actor.role)) {
-        sendAuthMiddlewareError(response, 403, 'FORBIDDEN', 'No tienes permisos para realizar esta acción.');
-        return;
-      }
-      if (policy.courierSelfPath && actor.role === 'repartidor') {
-        const match = policy.courierSelfPath.exec(request.path);
-        const targetCourierId = match?.[1]?.toLowerCase();
-        if (!actor.courierId || actor.courierId.toLowerCase() !== targetCourierId) {
-          sendAuthMiddlewareError(
-            response,
-            403,
-            'FORBIDDEN',
-            'El conductor solo puede consultar o modificar su propio perfil de repartidor.',
-          );
+    const authorizeAndContinue = () => {
+      const policy = resolvePolicy(request.method, request.path);
+      if (policy !== null) {
+        if (!policy.roles.includes(actor.role)) {
+          sendAuthMiddlewareError(response, 403, 'FORBIDDEN', 'No tienes permisos para realizar esta acción.');
           return;
         }
+        if (policy.courierSelfPath && actor.role === 'repartidor') {
+          const match = policy.courierSelfPath.exec(request.path);
+          const targetCourierId = match?.[1]?.toLowerCase();
+          if (!actor.courierId || actor.courierId.toLowerCase() !== targetCourierId) {
+            sendAuthMiddlewareError(
+              response,
+              403,
+              'FORBIDDEN',
+              'El conductor solo puede consultar o modificar su propio perfil de repartidor.',
+            );
+            return;
+          }
+        }
       }
+
+      actorStorage.run(actor, () => next());
+    };
+
+    if (!revocationStore) {
+      authorizeAndContinue();
+      return;
     }
 
-    actorStorage.run(actor, () => next());
+    void revocationStore
+      .isRevoked(actor.jti)
+      .then((revoked) => {
+        if (revoked) {
+          sendAuthMiddlewareError(response, 401, 'UNAUTHORIZED', 'El token de acceso ha sido revocado.');
+          return;
+        }
+        authorizeAndContinue();
+      })
+      .catch(next);
   };
 }

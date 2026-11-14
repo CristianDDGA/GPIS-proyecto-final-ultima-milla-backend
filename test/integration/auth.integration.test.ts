@@ -134,4 +134,25 @@ describe('Auth HTTP Integration (in-memory)', () => {
     expect(createdDriver.status).toBe(201);
     expect(createdDriver.body.user.role).toBe('repartidor');
   });
+
+  test('POST /auth/logout revoca el token actual e impide reutilizarlo (401)', async () => {
+    const reg = await request(app)
+      .post('/auth/register')
+      .send({ email: 'logout-user@test.com', password: 'Password123' });
+    expect(reg.status).toBe(201);
+    const token = reg.body.token as string;
+
+    const beforeLogout = await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`);
+    expect(beforeLogout.status).toBe(200);
+
+    const logout = await request(app).post('/auth/logout').set('Authorization', `Bearer ${token}`);
+    expect(logout.status).toBe(200);
+    expect(logout.body).toEqual({ ok: true });
+
+    const afterLogout = await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`);
+    expect(afterLogout.status).toBe(401);
+
+    const secondLogout = await request(app).post('/auth/logout').set('Authorization', `Bearer ${token}`);
+    expect(secondLogout.status).toBe(401);
+  });
 });
