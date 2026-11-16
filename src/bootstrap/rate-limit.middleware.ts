@@ -16,6 +16,13 @@ interface Bucket {
 
 const MAX_TRACKED_KEYS = 10_000;
 
+// Sin expresión regular: recorre una sola vez y no tiene backtracking con rutas muy largas.
+function trimTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 1 && path.charCodeAt(end - 1) === 47) end -= 1;
+  return path.slice(0, end);
+}
+
 // Limitador de ventana fija en memoria: suficiente para una sola instancia de la API.
 export function createRateLimiter(options: RateLimitOptions): RequestHandler {
   const now = options.now ?? Date.now;
@@ -35,7 +42,7 @@ export function createRateLimiter(options: RateLimitOptions): RequestHandler {
   }
 
   return (request, response, next) => {
-    const path = request.path.replace(/\/+$/, '') || '/';
+    const path = trimTrailingSlashes(request.path);
     if (request.method !== 'POST' || !paths.has(path)) {
       next();
       return;

@@ -148,3 +148,23 @@ describe('cierre de sesiones por usuario', () => {
     assert.equal(await store.isRevoked('jti-e'), false, 'sin claims solo cuenta la revocación por jti');
   });
 });
+
+describe('forma del correo sin expresiones regulares costosas', () => {
+  test('validateEmail acepta formas válidas y rechaza las mal formadas', async () => {
+    const { validateEmail } = await import('../../src/modules/auth/domain/auth-user.entity.js');
+    for (const valid of ['a@b.co', 'Ana.Perez@Correo.uta.edu.ec', 'x+y@sub.dominio.com']) {
+      assert.equal(validateEmail(valid), valid.toLowerCase());
+    }
+    for (const invalid of ['a@b', 'a@.co', 'a@b.', '@b.co', 'a@@b.co', 'a b@c.co', 'a@b c.co', '', 'sin-arroba']) {
+      assert.throws(() => validateEmail(invalid), (error: unknown) => error instanceof AuthError && error.code === 'VALIDATION_ERROR', invalid);
+    }
+  });
+
+  test('una entrada patológica muy larga se rechaza al instante', async () => {
+    const { validateEmail } = await import('../../src/modules/auth/domain/auth-user.entity.js');
+    const started = Date.now();
+    assert.throws(() => validateEmail(`${'a.'.repeat(60_000)}@${'b.'.repeat(60_000)}`));
+    assert.throws(() => validateEmail(`@${'.'.repeat(100_000)}`));
+    assert.ok(Date.now() - started < 500, 'no debe haber backtracking');
+  });
+});
