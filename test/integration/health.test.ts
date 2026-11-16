@@ -14,7 +14,7 @@ describe('Integration Test Harness - Health Check', () => {
 });
 
 describe('CORS con la configuración local predeterminada', () => {
-  const app = createApp(loadConfig({}));
+  const app = createApp(loadConfig({ JWT_SECRET: 'health-test-secret-0123456789abcdef' }));
 
   it('acepta el preflight del origen que usa Vite', async () => {
     const response = await request(app).options('/zones')

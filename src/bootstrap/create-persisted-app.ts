@@ -27,6 +27,14 @@ export interface PersistedAppOptions {
   readonly trustProxyHops?: number;
 }
 
+// Sin secreto de respaldo: un valor fijo en el código permitiría falsificar tokens de administrador.
+function requireJwtSecret(value: string | undefined): string {
+  if (value === undefined || value.length < 16) {
+    throw new Error('createPersistedApp requiere un JWT secret de al menos 16 caracteres (JWT_SECRET).');
+  }
+  return value;
+}
+
 // Single API: zones, orders, routes, couriers, route-operations and deliveries share one server, one database client and one CORS policy.
 export function createPersistedApp(
   database: ReturnType<typeof createDatabaseClient>,
@@ -52,7 +60,7 @@ export function createPersistedApp(
   const auth = createAuthModule({
     repository: new PrismaAuthRepository(database),
     revocationStore: new PrismaTokenRevocationStore(database),
-    jwtSecret: options?.jwtSecret ?? process.env['JWT_SECRET'] ?? 'dev-only-jwt-secret-change-in-prod',
+    jwtSecret: requireJwtSecret(options?.jwtSecret ?? process.env['JWT_SECRET']),
     ...(options?.jwtExpiresInSeconds !== undefined ? { jwtExpiresInSeconds: options.jwtExpiresInSeconds } : {}),
   });
 
