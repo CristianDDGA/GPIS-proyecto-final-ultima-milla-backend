@@ -5,6 +5,7 @@ export interface AppConfig {
   readonly jwtSecret: string;
   readonly jwtExpiresInSeconds: number;
   readonly authRateLimit: { readonly maxRequests: number; readonly windowMs: number };
+  readonly trustProxyHops?: number;
 }
 
 export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
@@ -60,8 +61,18 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     throw new Error('AUTH_RATE_LIMIT_WINDOW_MS debe ser un entero mayor o igual a 1000.');
   }
 
+  // TRUST_PROXY = número de proxies delante de la API (p. ej. 1). Vacío = no confiar en X-Forwarded-For.
+  let trustProxyHops: number | undefined;
+  if (environment.TRUST_PROXY !== undefined && environment.TRUST_PROXY !== '') {
+    trustProxyHops = Number(environment.TRUST_PROXY);
+    if (!Number.isInteger(trustProxyHops) || trustProxyHops < 1 || trustProxyHops > 10) {
+      throw new Error('TRUST_PROXY debe ser un entero entre 1 y 10.');
+    }
+  }
+
   return {
     port,
+    ...(trustProxyHops !== undefined ? { trustProxyHops } : {}),
     webOrigin,
     jwtSecret,
     jwtExpiresInSeconds,

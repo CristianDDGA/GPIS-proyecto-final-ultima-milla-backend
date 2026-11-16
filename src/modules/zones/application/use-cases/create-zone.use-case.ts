@@ -1,5 +1,6 @@
 import { Zone } from '../../domain/zone.entity.js';
-import { ZoneConflictError } from '../../domain/zone.errors.js';
+import { ZoneConflictError, ZoneValidationError } from '../../domain/zone.errors.js';
+import { validatePlaceName } from '../../../../shared/text-validation.js';
 import type { ZoneRepository } from '../ports/zone.repository.port.js';
 
 export interface CreateZoneCommand {
@@ -10,7 +11,10 @@ export class CreateZoneUseCase {
   constructor(private readonly zoneRepository: ZoneRepository) {}
 
   async execute(command: CreateZoneCommand): Promise<Zone> {
-    const zone = Zone.prepare({ name: command.name });
+    // Regla estricta solo al crear: la rehidratación de zonas existentes no se bloquea.
+    const checked = validatePlaceName(command.name, 'El nombre de la zona');
+    if (!checked.ok) throw new ZoneValidationError(checked.reason);
+    const zone = Zone.prepare({ name: checked.value });
 
     const existingZone = await this.zoneRepository.findByName(zone.name);
     if (existingZone !== null) {

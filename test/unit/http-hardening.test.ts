@@ -135,3 +135,22 @@ test('rate limiter: sin configuración no se limita', async () => {
     assert.equal((await request(app).post('/auth/login').send({})).status, 200);
   }
 });
+
+test('rate limiter: sin TRUST_PROXY ignora X-Forwarded-For; con trust proxy separa clientes por IP real', async () => {
+  const send = (app: ReturnType<typeof limitedApp>, ip: string) =>
+    request(app).post('/auth/login').set('X-Forwarded-For', ip).send({});
+
+  const direct = limitedApp(() => 1_000, 1);
+  assert.equal((await send(direct, '10.0.0.1')).status, 200);
+  assert.equal((await send(direct, '10.0.0.2')).status, 429, 'sin proxy confiable no se puede falsear la IP');
+
+  const proxied = createApp({
+    webOrigin,
+    routers: [{ basePath: '/auth', router: loginRouter() }],
+    authRateLimit: { maxRequests: 1, windowMs: 60_000, now: () => 1_000 },
+    trustProxyHops: 1,
+  });
+  assert.equal((await send(proxied, '10.0.0.1')).status, 200);
+  assert.equal((await send(proxied, '10.0.0.2')).status, 200, 'cada cliente real tiene su contador');
+  assert.equal((await send(proxied, '10.0.0.1')).status, 429);
+});

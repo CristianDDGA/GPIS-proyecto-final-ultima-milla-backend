@@ -52,7 +52,7 @@ export function setup() {
   const email = __ENV.AUTH_EMAIL || `k6-smoke-${Date.now()}@ultima-milla.test`;
   const password = __ENV.AUTH_PASSWORD || 'K6SmokePassword2026!';
   const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-  let res = http.post(`${BASE_URL}/auth/register`, JSON.stringify({ email, password, displayName: 'K6 Smoke' }), { headers });
+  let res = http.post(`${BASE_URL}/auth/register`, JSON.stringify({ email, password, displayName: 'Cliente Prueba Humo' }), { headers });
   if (res.status === 409) {
     res = http.post(`${BASE_URL}/auth/login`, JSON.stringify({ email, password }), { headers });
   }

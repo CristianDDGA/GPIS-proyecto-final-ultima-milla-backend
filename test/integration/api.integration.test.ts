@@ -80,7 +80,7 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
     expect(zone.status).toBe(201);
     for (const time of ['09:00', '10:00']) {
       const order = await request(app).post('/orders').set('Authorization', `Bearer ${adminToken}`)
-        .send({ zoneId: zone.body.id, deliveryAddress: `Calle ${time}`, deliveryDate: serviceDate, deliveryTime: time });
+        .send({ zoneId: zone.body.id, deliveryAddress: `Calle ${time.replace(':', '')}`, deliveryDate: serviceDate, deliveryTime: time });
       expect(order.status).toBe(201);
     }
 

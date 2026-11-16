@@ -1,4 +1,5 @@
 import { AuthError } from './auth.errors.js';
+import { validateNewEmail as validateNewEmailText, validatePersonName } from '../../../shared/text-validation.js';
 
 export const APP_ROLES = ['personal', 'repartidor', 'cliente'] as const;
 export type AppRole = typeof APP_ROLES[number];
@@ -40,6 +41,22 @@ export function validateEmail(value: unknown): string {
     throw new AuthError('VALIDATION_ERROR', 'El formato del correo electrónico no es válido.');
   }
   return normalized;
+}
+
+// Alta de usuarios: correo ASCII estricto. El login usa validateEmail para no bloquear cuentas antiguas.
+export function validateNewEmail(value: unknown): string {
+  const result = validateNewEmailText(value);
+  if (!result.ok) throw new AuthError('VALIDATION_ERROR', result.reason);
+  return result.value;
+}
+
+// Alta de usuarios: el nombre es opcional, pero si se envía solo admite letras (sin números ni emojis).
+export function validateNewDisplayName(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string' && value.trim().length === 0) return null;
+  const result = validatePersonName(value, 'El nombre');
+  if (!result.ok) throw new AuthError('VALIDATION_ERROR', result.reason);
+  return result.value;
 }
 
 export function validatePassword(value: unknown): string {

@@ -1,7 +1,8 @@
 import { AuthError } from '../domain/auth.errors.js';
 import {
-  validateDisplayName,
   validateEmail,
+  validateNewDisplayName,
+  validateNewEmail,
   validatePassword,
   validateRole,
   type AppRole,
@@ -46,9 +47,9 @@ export function createAuthUseCases(
 
   return {
     async registerCustomer(input) {
-      const email = validateEmail(input.email);
+      const email = validateNewEmail(input.email);
       const password = validatePassword(input.password);
-      const displayName = validateDisplayName(input.displayName);
+      const displayName = validateNewDisplayName(input.displayName);
       const passwordHash = await hasher.hash(password);
       const user = await repository.registerUser({
         authSubject: email,
@@ -64,10 +65,10 @@ export function createAuthUseCases(
       if (actor.role !== 'personal') {
         throw new AuthError('FORBIDDEN', 'Solo un administrador puede crear usuarios con rol asignado.');
       }
-      const email = validateEmail(input.email);
+      const email = validateNewEmail(input.email);
       const password = validatePassword(input.password);
       const role = validateRole(input.role);
-      const displayName = validateDisplayName(input.displayName);
+      const displayName = validateNewDisplayName(input.displayName);
       const passwordHash = await hasher.hash(password);
       return repository.registerUser({
         authSubject: email,

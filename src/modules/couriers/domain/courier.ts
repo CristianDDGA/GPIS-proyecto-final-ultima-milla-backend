@@ -1,4 +1,5 @@
 import { CourierError } from './courier.errors.js';
+import { validatePersonName } from '../../../shared/text-validation.js';
 
 export interface Courier {
   readonly id: string;
@@ -16,10 +17,12 @@ export function validateRegistration(displayName: unknown, capacity: unknown) {
   if (typeof displayName !== 'string' || !displayName.trim()) {
     throw new CourierError('VALIDATION_ERROR', 'El nombre es obligatorio.');
   }
+  const name = validatePersonName(displayName, 'El nombre');
+  if (!name.ok) throw new CourierError('VALIDATION_ERROR', name.reason);
   if (typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 1 || capacity > 2147483647) {
     throw new CourierError('VALIDATION_ERROR', 'La capacidad debe ser un entero positivo de 32 bits.');
   }
-  return { displayName: displayName.trim(), maxOrdersPerTrip: capacity };
+  return { displayName: name.value, maxOrdersPerTrip: capacity };
 }
 export function validateId(value: unknown): string {
   if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {

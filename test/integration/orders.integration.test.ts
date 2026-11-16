@@ -204,11 +204,19 @@ describe('Suite de Integración API / Persistencia - Pedidos', () => {
     });
   });
 
+  describe('Validación estricta de direcciones', () => {
+    it.each(["Dirección '; DROP TABLE logistica.orders; --", 'Calle Falsa 123 😀', 'Calle <script>alert(1)</script>'])('rechaza %j con 400 sin persistir', async (address) => {
+      const result = await request(app).post('/orders').send({ zoneId: validZone.id, deliveryAddress: address, deliveryDate: '2099-01-01', deliveryTime: '10:00' });
+      expect(result.status).toBe(400);
+      expect(result.body.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
   describe('S1-CP-009 · Recuperación y filtros de pedidos con Fixture representativa', () => {
     it('conserva creación y entrega por separado e ignora metadatos del cliente', async () => {
       const futureDate = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Guayaquil',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.now()+2*86_400_000));
       const before = Date.now();
-      const result = await request(app).post('/orders').send({zoneId:validZone.id,deliveryAddress:"Dirección '; DROP TABLE logistica.orders; --",deliveryDate:futureDate,deliveryTime:'14:30',status:'entregado',createdAt:'1990-01-01T00:00:00.000Z',id:'b0000000-0000-4000-8000-000000000000'});
+      const result = await request(app).post('/orders').send({zoneId:validZone.id,deliveryAddress:"Dirección O'Neil & Hijos (DROP TABLE orders)",deliveryDate:futureDate,deliveryTime:'14:30',status:'entregado',createdAt:'1990-01-01T00:00:00.000Z',id:'b0000000-0000-4000-8000-000000000000'});
       expect(result.status).toBe(201);
       expect(result.body.status).toBe('pendiente');
       expect(new Date(result.body.createdAt).getTime()).toBeGreaterThanOrEqual(before-1000);

@@ -22,6 +22,8 @@ export interface AppDependencies {
   /** Debe rechazar si PostgreSQL no responde; /health devuelve 503 en ese caso. */
   /** Límite de intentos por IP en /auth/login y /auth/register; sin valor, no se limita. */
   readonly authRateLimit?: { readonly maxRequests: number; readonly windowMs: number; readonly now?: () => number };
+  /** Saltos de proxy confiables (X-Forwarded-For). Sin valor, se usa la IP del socket. */
+  readonly trustProxyHops?: number;
   readonly checkDatabase?: () => Promise<unknown>;
 }
 
@@ -39,6 +41,9 @@ export function createApp(dependencies: AppDependencies) {
   const app = express();
 
   app.disable('x-powered-by');
+  // Detrás de un proxy/balanceador, sin esto todos los clientes comparten la IP del proxy y el
+  // rate limiter los bloquearía juntos. Solo se activa si se configura explícitamente.
+  if (dependencies.trustProxyHops !== undefined) app.set('trust proxy', dependencies.trustProxyHops);
   // Hallazgo ZAP 10021: impide el MIME sniffing de las respuestas JSON.
   app.use((_request, response, next) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
