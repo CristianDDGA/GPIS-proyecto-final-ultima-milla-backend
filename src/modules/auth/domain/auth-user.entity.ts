@@ -26,7 +26,18 @@ export interface AuthUserRecord extends AuthUser {
   readonly emailVerifiedVia: EmailVerifiedVia | null;
 }
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Forma mínima de un correo (un solo @, sin espacios, con un punto con texto a ambos lados en el dominio).
+// Sin expresión regular con cuantificadores anidados: evita el backtracking con entradas largas.
+function hasEmailShape(value: string): boolean {
+  const at = value.indexOf('@');
+  if (at <= 0 || at !== value.lastIndexOf('@')) return false;
+  if (/\s/.test(value)) return false;
+  const domain = value.slice(at + 1);
+  for (let index = 1; index < domain.length - 1; index += 1) {
+    if (domain[index] === '.') return true;
+  }
+  return false;
+}
 
 export function toPublicRole(role: AppRole): PublicRole {
   return role === 'personal' ? 'admin' : role;
@@ -43,7 +54,7 @@ export function validateEmail(value: unknown): string {
     throw new AuthError('VALIDATION_ERROR', 'El correo electrónico es obligatorio.');
   }
   const normalized = value.trim().toLowerCase();
-  if (normalized.length === 0 || normalized.length > 254 || !EMAIL_REGEX.test(normalized)) {
+  if (normalized.length === 0 || normalized.length > 254 || !hasEmailShape(normalized)) {
     throw new AuthError('VALIDATION_ERROR', 'El formato del correo electrónico no es válido.');
   }
   return normalized;
