@@ -187,10 +187,12 @@ describe('Registro de eventos de seguridad (en memoria)', () => {
 
     const unverified = await request(ctx.app).post('/auth/login').send({ email: 'ana@test.com', password: 'Clave-Larga-Segura-2026' });
     expect(unverified.body.code).toBe('EMAIL_NOT_VERIFIED');
-    await request(ctx.app).post('/auth/verify-email').send({ email: 'ana@test.com', code: ctx.emails.lastCodeFor('ana@test.com') });
+    const verificationCode = String(ctx.emails.lastCodeFor('ana@test.com'));
+    await request(ctx.app).post('/auth/verify-email').send({ email: 'ana@test.com', code: verificationCode });
 
     await request(ctx.app).post('/auth/forgot-password').send({ email: 'ana@test.com' });
-    await request(ctx.app).post('/auth/reset-password').send({ email: 'ana@test.com', code: ctx.emails.lastCodeFor('ana@test.com'), newPassword: 'Otra-Clave-Larga-2027' });
+    const resetCode = String(ctx.emails.lastCodeFor('ana@test.com'));
+    await request(ctx.app).post('/auth/reset-password').send({ email: 'ana@test.com', code: resetCode, newPassword: 'Otra-Clave-Larga-2027' });
     expect(ctx.events.map((event) => event.type)).toEqual(['register', 'login_unverified', 'email_verified', 'password_reset']);
 
     ctx.events.length = 0;
@@ -199,7 +201,10 @@ describe('Registro de eventos de seguridad (en memoria)', () => {
     }
     expect(ctx.events.map((event) => event.type)).toEqual(['login_failed', 'login_failed', 'login_failed', 'login_failed', 'login_failed', 'login_locked']);
     expect(ctx.events.every((event) => event.email === 'a***@test.com')).toBe(true);
-    expect(JSON.stringify(ctx.events)).not.toMatch(/\d{6}/);
+    // No se busca "6 dígitos" en general: el UUID del usuario puede contener seis dígitos seguidos por azar.
+    const serialized = JSON.stringify(ctx.events);
+    expect(serialized).not.toContain(verificationCode);
+    expect(serialized).not.toContain(resetCode);
   });
 
   test('un fallo del registro de eventos nunca rompe la petición', async () => {
