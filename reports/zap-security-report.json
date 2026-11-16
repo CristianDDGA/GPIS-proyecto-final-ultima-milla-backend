@@ -1,8 +1,8 @@
 {
 	"@programName": "ZAP",
 	"@version": "2.17.0",
-	"@generated": "Thu, 12 Nov 2026 19:46:13",
-	"created": "2026-11-12T19:46:13.642827056Z",
+	"@generated": "Sun, 15 Nov 2026 02:20:55",
+	"created": "2026-11-15T02:20:55.082902318Z",
 	"insights":[
 		{
 			"level": "Info",
@@ -10,7 +10,7 @@
 			"site": "http://host.docker.internal:3000",
 			"key": "insight.code.2xx",
 			"description": "Percentage of responses with status code 2xx",
-			"statistic": "31"
+			"statistic": "9"
 		},
 		{
 			"level": "Info",
@@ -18,7 +18,7 @@
 			"site": "http://host.docker.internal:3000",
 			"key": "insight.code.4xx",
 			"description": "Percentage of responses with status code 4xx",
-			"statistic": "68"
+			"statistic": "90"
 		},
 		{
 			"level": "Info",
@@ -34,7 +34,7 @@
 			"site": "http://host.docker.internal:3000",
 			"key": "insight.endpoint.method.GET",
 			"description": "Percentage of endpoints with method GET",
-			"statistic": "82"
+			"statistic": "79"
 		},
 		{
 			"level": "Info",
@@ -42,7 +42,7 @@
 			"site": "http://host.docker.internal:3000",
 			"key": "insight.endpoint.method.POST",
 			"description": "Percentage of endpoints with method POST",
-			"statistic": "17"
+			"statistic": "20"
 		},
 		{
 			"level": "Info",
@@ -50,7 +50,7 @@
 			"site": "http://host.docker.internal:3000",
 			"key": "insight.endpoint.total",
 			"description": "Count of total endpoints",
-			"statistic": "29"
+			"statistic": "34"
 		}
 	],
 	"site":[ 
@@ -71,7 +71,7 @@
 					"desc": "<p>Cross-Origin-Resource-Policy header is an opt-in header designed to counter side-channels attacks like Spectre. Resource should be specifically set as shareable amongst different origins.</p>",
 					"instances":[ 
 						{
-							"id": "17",
+							"id": "1",
 							"uri": "http://host.docker.internal:3000/health",
 							"nodeName": "http:\/\/host.docker.internal:3000\/health",
 							"method": "GET",
@@ -81,7 +81,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "18",
+							"id": "21",
 							"uri": "http://host.docker.internal:3000/orders",
 							"nodeName": "http:\/\/host.docker.internal:3000\/orders",
 							"method": "GET",
@@ -91,7 +91,7 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "21",
+							"id": "22",
 							"uri": "http://host.docker.internal:3000/orders?limit=1%20OR%201%3D1",
 							"nodeName": "http:\/\/host.docker.internal:3000\/orders (limit)",
 							"method": "GET",
@@ -102,8 +102,8 @@
 						},
 						{
 							"id": "19",
-							"uri": "http://host.docker.internal:3000/routes",
-							"nodeName": "http:\/\/host.docker.internal:3000\/routes",
+							"uri": "http://host.docker.internal:3000/zones",
+							"nodeName": "http:\/\/host.docker.internal:3000\/zones",
 							"method": "GET",
 							"param": "Cross-Origin-Resource-Policy",
 							"attack": "",
@@ -111,9 +111,9 @@
 							"otherinfo": ""
 						},
 						{
-							"id": "16",
-							"uri": "http://host.docker.internal:3000/zones",
-							"nodeName": "http:\/\/host.docker.internal:3000\/zones",
+							"id": "23",
+							"uri": "http://host.docker.internal:3000/zones?name=%27%20OR%201%3D1--",
+							"nodeName": "http:\/\/host.docker.internal:3000\/zones (name)",
 							"method": "GET",
 							"param": "Cross-Origin-Resource-Policy",
 							"attack": "",
@@ -122,13 +122,43 @@
 						}
 					],
 					"count": "5",
-					"systemic": true,
+					"systemic": false,
 					"solution": "<p>Ensure that the application/web server sets the Cross-Origin-Resource-Policy header appropriately, and that it sets the Cross-Origin-Resource-Policy header to 'same-origin' for all web pages.</p><p>'same-site' is considered as less secured and should be avoided.</p><p>If resources must be shared, set the header to 'cross-origin'.</p><p>If possible, ensure that the end user uses a standards-compliant and modern web browser that supports the Cross-Origin-Resource-Policy header (https://caniuse.com/mdn-http_headers_cross-origin-resource-policy).</p>",
 					"otherinfo": "",
 					"reference": "<p>https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy</p>",
 					"cweid": "693",
 					"wascid": "14",
 					"sourceid": "1"
+				},
+				{
+					"pluginid": "10111",
+					"alertRef": "10111",
+					"alert": "Authentication Request Identified",
+					"name": "Authentication Request Identified",
+					"riskcode": "0",
+					"confidence": "3",
+					"riskdesc": "Informational (High)",
+					"desc": "<p>The given request has been identified as an authentication request. The 'Other Info' field contains a set of key=value lines which identify any relevant fields. If the request is in a context which has an Authentication Method set to \"Auto-Detect\" then this rule will change the authentication to match the request identified.</p>",
+					"instances":[ 
+						{
+							"id": "18",
+							"uri": "http://host.docker.internal:3000/auth/login",
+							"nodeName": "http:\/\/host.docker.internal:3000\/auth\/login ()({email,password})",
+							"method": "POST",
+							"param": "email",
+							"attack": "",
+							"evidence": "password",
+							"otherinfo": "userParam=email\nuserValue=' OR 1=1--\npasswordParam=password"
+						}
+					],
+					"count": "1",
+					"systemic": false,
+					"solution": "<p>This is an informational alert rather than a vulnerability and so there is nothing to fix.</p>",
+					"otherinfo": "<p>userParam=email</p><p>userValue=' OR 1=1--</p><p>passwordParam=password</p>",
+					"reference": "<p>https://www.zaproxy.org/docs/desktop/addons/authentication-helper/auth-req-id/</p>",
+					"cweid": "-1",
+					"wascid": "-1",
+					"sourceid": "25"
 				},
 				{
 					"pluginid": "10049",
@@ -141,34 +171,94 @@
 					"desc": "<p>The response contents are not storable by caching components such as proxy servers. If the response does not contain sensitive, personal or user-specific information, it may benefit from being stored and cached, to improve performance.</p>",
 					"instances":[ 
 						{
-							"id": "6",
-							"uri": "http://host.docker.internal:3000/orders/not-a-uuid",
-							"nodeName": "http:\/\/host.docker.internal:3000\/orders\/not-a-uuid",
+							"id": "14",
+							"uri": "http://host.docker.internal:3000/couriers",
+							"nodeName": "http:\/\/host.docker.internal:3000\/couriers",
 							"method": "GET",
 							"param": "",
 							"attack": "",
-							"evidence": "400",
+							"evidence": "401",
 							"otherinfo": ""
 						},
 						{
-							"id": "1",
+							"id": "3",
+							"uri": "http://host.docker.internal:3000/orders/3f2b8c1e-9d4a-4e7b-8a61-5c0d2f7e9b11",
+							"nodeName": "http:\/\/host.docker.internal:3000\/orders\/3f2b8c1e-9d4a-4e7b-8a61-5c0d2f7e9b11",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "401",
+							"otherinfo": ""
+						},
+						{
+							"id": "4",
 							"uri": "http://host.docker.internal:3000/routes/1%3B%20DROP%20TABLE%20orders%3B--",
 							"nodeName": "http:\/\/host.docker.internal:3000\/routes\/1; DROP TABLE orders;--",
 							"method": "GET",
 							"param": "",
 							"attack": "",
-							"evidence": "400",
+							"evidence": "401",
+							"otherinfo": ""
+						},
+						{
+							"id": "2",
+							"uri": "http://host.docker.internal:3000/routes/3f2b8c1e-9d4a-4e7b-8a61-5c0d2f7e9b11",
+							"nodeName": "http:\/\/host.docker.internal:3000\/routes\/3f2b8c1e-9d4a-4e7b-8a61-5c0d2f7e9b11",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "401",
+							"otherinfo": ""
+						},
+						{
+							"id": "12",
+							"uri": "http://host.docker.internal:3000/zones",
+							"nodeName": "http:\/\/host.docker.internal:3000\/zones",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "401",
 							"otherinfo": ""
 						}
 					],
-					"count": "2",
-					"systemic": false,
+					"count": "5",
+					"systemic": true,
 					"solution": "<p>The content may be marked as storable by ensuring that the following conditions are satisfied:</p><p>The request method must be understood by the cache and defined as being cacheable (\"GET\", \"HEAD\", and \"POST\" are currently defined as cacheable)</p><p>The response status code must be understood by the cache (one of the 1XX, 2XX, 3XX, 4XX, or 5XX response classes are generally understood)</p><p>The \"no-store\" cache directive must not appear in the request or response header fields</p><p>For caching by \"shared\" caches such as \"proxy\" caches, the \"private\" response directive must not appear in the response</p><p>For caching by \"shared\" caches such as \"proxy\" caches, the \"Authorization\" header field must not appear in the request, unless the response explicitly allows it (using one of the \"must-revalidate\", \"public\", or \"s-maxage\" Cache-Control response directives)</p><p>In addition to the conditions above, at least one of the following conditions must also be satisfied by the response:</p><p>It must contain an \"Expires\" header field</p><p>It must contain a \"max-age\" response directive</p><p>For \"shared\" caches such as \"proxy\" caches, it must contain a \"s-maxage\" response directive</p><p>It must contain a \"Cache Control Extension\" that allows it to be cached</p><p>It must have a status code that is defined as cacheable by default (200, 203, 204, 206, 300, 301, 404, 405, 410, 414, 501).</p>",
 					"otherinfo": "",
 					"reference": "<p>https://datatracker.ietf.org/doc/html/rfc7234</p><p>https://datatracker.ietf.org/doc/html/rfc7231</p><p>https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html</p>",
 					"cweid": "524",
 					"wascid": "13",
-					"sourceid": "18"
+					"sourceid": "5"
+				},
+				{
+					"pluginid": "10049",
+					"alertRef": "10049-3",
+					"alert": "Storable and Cacheable Content",
+					"name": "Storable and Cacheable Content",
+					"riskcode": "0",
+					"confidence": "2",
+					"riskdesc": "Informational (Medium)",
+					"desc": "<p>The response contents are storable by caching components such as proxy servers, and may be retrieved directly from the cache, rather than from the origin server by the caching servers, in response to similar requests from other users. If the response data is sensitive, personal or user-specific, this may result in sensitive information being leaked. In some cases, this may even result in a user gaining complete control of the session of another user, depending on the configuration of the caching components in use in their environment. This is primarily an issue where \"shared\" caching servers such as \"proxy\" caches are configured on the local network. This configuration is typically found in corporate or educational environments, for instance.</p>",
+					"instances":[ 
+						{
+							"id": "0",
+							"uri": "http://host.docker.internal:3000/health",
+							"nodeName": "http:\/\/host.docker.internal:3000\/health",
+							"method": "GET",
+							"param": "",
+							"attack": "",
+							"evidence": "",
+							"otherinfo": "In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234."
+						}
+					],
+					"count": "1",
+					"systemic": false,
+					"solution": "<p>Validate that the response does not contain sensitive, personal or user-specific information. If it does, consider the use of the following HTTP response headers, to limit, or prevent the content being stored and retrieved from the cache by another user:</p><p>Cache-Control: no-cache, no-store, must-revalidate, private</p><p>Pragma: no-cache</p><p>Expires: 0</p><p>This configuration directs both HTTP 1.0 and HTTP 1.1 compliant caching servers to not store the response, and to not retrieve the response (without validation) from the cache, in response to a similar request.</p>",
+					"otherinfo": "<p>In the absence of an explicitly specified caching lifetime directive in the response, a liberal lifetime heuristic of 1 year was assumed. This is permitted by rfc7234.</p>",
+					"reference": "<p>https://datatracker.ietf.org/doc/html/rfc7234</p><p>https://datatracker.ietf.org/doc/html/rfc7231</p><p>https://www.w3.org/Protocols/rfc2616/rfc2616-sec13.html</p>",
+					"cweid": "524",
+					"wascid": "13",
+					"sourceid": "1"
 				}
 			]
 		}

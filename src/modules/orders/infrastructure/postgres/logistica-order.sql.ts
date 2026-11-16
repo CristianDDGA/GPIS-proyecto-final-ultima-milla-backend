@@ -22,6 +22,15 @@ export const logisticaOrderSql: AuthorizedOrderSql = {
     const zone = filters.zoneId ?? null;
     const actor = getRequestActor();
     const customerUserId = actor?.role === 'cliente' ? actor.sub : null;
+    // Ruta directa por clave primaria: la usa la transaccion de POST /orders.
+    if (id !== null && date === null && zone === null && customerUserId === null) {
+      return orderSql`SELECT id, zone_id AS "zoneId", delivery_address AS "deliveryAddress",
+        to_char(delivery_date, 'YYYY-MM-DD') AS "deliveryDate",
+        left(delivery_time::text, 5) AS "deliveryTime", status,
+        created_at AS "createdAt", updated_at AS "updatedAt"
+        FROM logistica.orders
+        WHERE id = ${id}::uuid`;
+    }
     return orderSql`SELECT id, zone_id AS "zoneId", delivery_address AS "deliveryAddress",
       to_char(delivery_date, 'YYYY-MM-DD') AS "deliveryDate",
       left(delivery_time::text, 5) AS "deliveryTime", status,
