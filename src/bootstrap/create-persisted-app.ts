@@ -56,6 +56,7 @@ export function createPersistedApp(
 
   return createApp({
     webOrigin,
+    checkDatabase: () => database.$queryRaw`SELECT 1`,
     tokenService: auth.tokenService,
     tokenRevocationStore: auth.revocationStore,
     zoneRepository: new PrismaZoneRepository(database),
