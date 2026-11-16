@@ -122,7 +122,7 @@ export function setup() {
     const authHeaders = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     let authRes = http.post(
       `${BASE_URL}/auth/register`,
-      JSON.stringify({ email, password, displayName: 'K6 Stress Client' }),
+      JSON.stringify({ email, password, displayName: 'Cliente Prueba Estres' }),
       { headers: authHeaders, timeout: '10s' },
     );
     if (authRes.status === 409) {

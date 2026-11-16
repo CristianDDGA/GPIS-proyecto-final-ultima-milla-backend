@@ -19,6 +19,7 @@ const app = database
       jwtSecret: config.jwtSecret,
       jwtExpiresInSeconds: config.jwtExpiresInSeconds,
       authRateLimit: config.authRateLimit,
+      ...(config.trustProxyHops !== undefined ? { trustProxyHops: config.trustProxyHops } : {}),
     })
   : createApp({ webOrigin: config.webOrigin });
 const server = app.listen(config.port, () => {

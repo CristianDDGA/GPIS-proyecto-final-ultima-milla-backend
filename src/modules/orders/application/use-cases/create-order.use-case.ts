@@ -1,5 +1,6 @@
 import { Order } from '../../domain/order.entity.js';
-import { OrderConflictError, ZoneNotFoundError } from '../../domain/order.errors.js';
+import { OrderConflictError, OrderValidationError, ZoneNotFoundError } from '../../domain/order.errors.js';
+import { validateAddressText } from '../../../../shared/text-validation.js';
 import type { OrderRepository } from '../ports/order.repository.port.js';
 import type { OrderZonePort } from '../ports/order-zone.port.js';
 
@@ -17,9 +18,17 @@ export class CreateOrderUseCase {
   ) {}
 
   async execute(command: CreateOrderCommand): Promise<Order> {
+    // Regla estricta solo al crear: la rehidratación de pedidos existentes no se bloquea.
+    // Un valor no textual lo sigue rechazando Order.prepare con su mensaje original.
+    let deliveryAddress = command.deliveryAddress;
+    if (typeof deliveryAddress === 'string' && deliveryAddress.trim().length > 0) {
+      const checked = validateAddressText(deliveryAddress, 'La dirección de entrega');
+      if (!checked.ok) throw new OrderValidationError(checked.reason);
+      deliveryAddress = checked.value;
+    }
     const order = Order.prepare({
       zoneId: command.zoneId,
-      deliveryAddress: command.deliveryAddress,
+      deliveryAddress,
       deliveryDate: command.deliveryDate,
       deliveryTime: command.deliveryTime,
     });
