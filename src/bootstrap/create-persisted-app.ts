@@ -30,6 +30,7 @@ export interface PersistedAppOptions {
   readonly emailSender?: EmailSender;
   /** Por defecto true; false = modo demo. */
   readonly emailVerificationRequired?: boolean;
+  readonly loginLockout?: { readonly maxFailures: number; readonly lockSeconds: number };
 }
 
 // Sin secreto de respaldo: un valor fijo en el código permitiría falsificar tokens de administrador.
@@ -68,6 +69,7 @@ export function createPersistedApp(
     jwtSecret: requireJwtSecret(options?.jwtSecret ?? process.env['JWT_SECRET']),
     ...(options?.jwtExpiresInSeconds !== undefined ? { jwtExpiresInSeconds: options.jwtExpiresInSeconds } : {}),
     ...(options?.emailSender ? { emailSender: options.emailSender } : {}),
+    ...(options?.loginLockout ? { loginLockout: options.loginLockout } : {}),
     ...(options?.emailVerificationRequired !== undefined ? { emailVerificationRequired: options.emailVerificationRequired } : {}),
   });
 

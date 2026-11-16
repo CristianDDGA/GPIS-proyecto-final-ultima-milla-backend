@@ -4,15 +4,16 @@ import { createAuthModule } from '../../src/modules/auth/index.js';
 import { CapturingEmailSender, InMemoryAuthRepository } from '../support/in-memory-auth.js';
 
 const SECRET = 'integration-test-jwt-secret-1234';
-const PASSWORD = 'Password123';
+const PASSWORD = 'ClaveSegura2026';
 
-function build(options: { emailVerificationRequired?: boolean; now?: () => number } = {}) {
+function build(options: { emailVerificationRequired?: boolean; now?: () => number; lockoutNow?: () => number } = {}) {
   const repository = new InMemoryAuthRepository(options.now);
   const emails = new CapturingEmailSender();
   const authModule = createAuthModule({
     repository,
     jwtSecret: SECRET,
     emailSender: emails,
+    ...(options.lockoutNow ? { loginLockout: { maxFailures: 5, lockSeconds: 300, now: options.lockoutNow } } : {}),
     ...(options.emailVerificationRequired !== undefined ? { emailVerificationRequired: options.emailVerificationRequired } : {}),
   });
   const app = createApp({
@@ -28,9 +29,9 @@ function build(options: { emailVerificationRequired?: boolean; now?: () => numbe
 async function adminToken(ctx: ReturnType<typeof build>): Promise<string> {
   await ctx.authModule.useCases.registerByAdmin(
     { role: 'personal' },
-    { email: 'admin@test.com', password: 'AdminPassword123', role: 'admin', displayName: 'Administrador' },
+    { email: 'admin@test.com', password: 'Torre-Azul-Cobre-2026', role: 'admin', displayName: 'Administrador' },
   );
-  const login = await request(ctx.app).post('/auth/login').send({ email: 'admin@test.com', password: 'AdminPassword123' });
+  const login = await request(ctx.app).post('/auth/login').send({ email: 'admin@test.com', password: 'Torre-Azul-Cobre-2026' });
   expect(login.status).toBe(200);
   return login.body.token as string;
 }
@@ -175,11 +176,11 @@ describe('Auth HTTP · registro y verificación de correo (en memoria)', () => {
     const ctx = build();
     const token = await adminToken(ctx);
     const created = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'conductor.demo@correo.ficticio.com', password: 'ConductorClave1', role: 'repartidor', displayName: 'Carlos Conductor' });
+      .send({ email: 'conductor.demo@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
     expect(created.status).toBe(201);
     expect(created.body.user.emailVerified).toBe(true);
     expect(ctx.emails.sent).toHaveLength(0);
-    const login = await request(ctx.app).post('/auth/login').send({ email: 'conductor.demo@correo.ficticio.com', password: 'ConductorClave1' });
+    const login = await request(ctx.app).post('/auth/login').send({ email: 'conductor.demo@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026' });
     expect(login.status).toBe(200);
     expect(login.body.user.role).toBe('repartidor');
   });
@@ -203,11 +204,11 @@ describe('Auth HTTP · login, sesión y administración (en memoria)', () => {
     const ctx = build();
     const customer = await verifiedCustomer(ctx, 'cliente3@test.com');
     const forbidden = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${customer.token}`)
-      .send({ email: 'driver@test.com', password: 'DriverPassword123', role: 'repartidor' });
+      .send({ email: 'driver@test.com', password: 'Faro-Verde-Mar-2026', role: 'repartidor' });
     expect(forbidden.status).toBe(403);
     const token = await adminToken(ctx);
     const created = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'driver@test.com', password: 'DriverPassword123', role: 'repartidor', displayName: 'Conductor Uno' });
+      .send({ email: 'driver@test.com', password: 'Faro-Verde-Mar-2026', role: 'repartidor', displayName: 'Conductor Uno' });
     expect(created.status).toBe(201);
     expect(created.body.user.role).toBe('repartidor');
   });
@@ -264,7 +265,7 @@ describe('Auth HTTP · recuperación y cambio de clave (en memoria)', () => {
     // Un conductor creado por el admin (correo ficticio) no recibe códigos de recuperación.
     const token = await adminToken(ctx);
     await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'conductor@ficticio.com', password: 'ConductorClave1', role: 'repartidor' });
+      .send({ email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor' });
     ctx.emails.sent.length = 0;
     expect((await request(ctx.app).post('/auth/forgot-password').send({ email: 'conductor@ficticio.com' })).status).toBe(202);
     expect(ctx.emails.sent).toHaveLength(0);
@@ -310,9 +311,9 @@ describe('Auth HTTP · recuperación y cambio de clave (en memoria)', () => {
     const ctx = build();
     const token = await adminToken(ctx);
     const driver = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'conductor@ficticio.com', password: 'ConductorClave1', role: 'repartidor', displayName: 'Carlos Conductor' });
+      .send({ email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
     const driverId = driver.body.user.id as string;
-    const driverSession = await request(ctx.app).post('/auth/login').send({ email: 'conductor@ficticio.com', password: 'ConductorClave1' });
+    const driverSession = await request(ctx.app).post('/auth/login').send({ email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026' });
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
     const byDriver = await request(ctx.app).post(`/auth/users/${driverId}/reset-password`).set('Authorization', `Bearer ${driverSession.body.token}`).send({ newPassword: 'ClaveNueva789' });
@@ -326,5 +327,79 @@ describe('Auth HTTP · recuperación y cambio de clave (en memoria)', () => {
     const missing = await request(ctx.app).post('/auth/users/11111111-1111-4111-8111-111111111111/reset-password').set('Authorization', `Bearer ${token}`).send({ newPassword: 'ClaveNueva789' });
     expect(missing.status).toBe(404);
     expect((await request(ctx.app).post('/auth/users/no-es-uuid/reset-password').set('Authorization', `Bearer ${token}`).send({ newPassword: 'ClaveNueva789' })).status).toBe(400);
+  });
+});
+
+describe('Auth HTTP · bloqueo por cuenta y política de contraseñas (en memoria)', () => {
+  const loginWith = (ctx: ReturnType<typeof build>, email: string, password: string) =>
+    request(ctx.app).post('/auth/login').send({ email, password });
+
+  test('5 fallos bloquean la cuenta 5 minutos: 429 ACCOUNT_LOCKED con Retry-After, incluso con la clave correcta', async () => {
+    let clock = 50_000_000;
+    const ctx = build({ lockoutNow: () => clock });
+    await verifiedCustomer(ctx);
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      expect((await loginWith(ctx, 'ana@test.com', 'ClaveIncorrecta9')).status).toBe(401);
+    }
+    const locked = await loginWith(ctx, 'ana@test.com', PASSWORD);
+    expect(locked.status).toBe(429);
+    expect(locked.body.code).toBe('ACCOUNT_LOCKED');
+    expect(locked.body.error.code).toBe('ACCOUNT_LOCKED');
+    expect(Number(locked.headers['retry-after'])).toBe(300);
+
+    clock += 100_000;
+    expect(Number((await loginWith(ctx, 'ana@test.com', PASSWORD)).headers['retry-after'])).toBe(200);
+
+    clock += 201_000;
+    expect((await loginWith(ctx, 'ana@test.com', PASSWORD)).status).toBe(200);
+  });
+
+  test('un login correcto reinicia el contador de fallos', async () => {
+    const ctx = build({ lockoutNow: () => 60_000_000 });
+    await verifiedCustomer(ctx);
+    for (let round = 0; round < 3; round += 1) {
+      for (let attempt = 0; attempt < 4; attempt += 1) await loginWith(ctx, 'ana@test.com', 'ClaveIncorrecta9');
+      expect((await loginWith(ctx, 'ana@test.com', PASSWORD)).status).toBe(200);
+    }
+  });
+
+  test('el bloqueo es por cuenta y también cuenta correos inexistentes (no revela qué cuentas existen)', async () => {
+    const ctx = build({ lockoutNow: () => 70_000_000 });
+    await verifiedCustomer(ctx);
+    await verifiedCustomer(ctx, 'luis@test.com');
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await loginWith(ctx, 'ana@test.com', 'ClaveIncorrecta9');
+      await loginWith(ctx, 'fantasma@test.com', 'ClaveIncorrecta9');
+    }
+    expect((await loginWith(ctx, 'ana@test.com', PASSWORD)).status).toBe(429);
+    const ghost = await loginWith(ctx, 'fantasma@test.com', PASSWORD);
+    expect(ghost.status).toBe(429);
+    expect(ghost.body.code).toBe('ACCOUNT_LOCKED');
+    expect((await loginWith(ctx, 'luis@test.com', PASSWORD)).status).toBe(200);
+  });
+
+  test('las contraseñas comunes o predecibles se rechazan al registrar, cambiar y restablecer', async () => {
+    const ctx = build();
+    for (const weak of ['Password123', 'password', '12345678', 'qwerty123', 'aaaaaaaaaa', 'Admin#2026', 'ana.perez2026']) {
+      const response = await request(ctx.app).post('/auth/register').send({ email: 'ana.perez@test.com', password: weak });
+      expect([weak, response.status]).toEqual([weak, 400]);
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    }
+    const session = await verifiedCustomer(ctx);
+    const change = await request(ctx.app).post('/auth/change-password').set('Authorization', `Bearer ${session.token}`)
+      .send({ currentPassword: PASSWORD, newPassword: 'Password123' });
+    expect(change.status).toBe(400);
+    expect(change.body.message).toMatch(/común|fácil/);
+
+    await request(ctx.app).post('/auth/forgot-password').send({ email: 'ana@test.com' });
+    const reset = await request(ctx.app).post('/auth/reset-password')
+      .send({ email: 'ana@test.com', code: ctx.emails.lastCodeFor('ana@test.com'), newPassword: '12345678' });
+    expect(reset.status).toBe(400);
+  });
+
+  test('una contraseña larga y única se acepta', async () => {
+    const ctx = build();
+    const response = await request(ctx.app).post('/auth/register').send({ email: 'ana@test.com', password: 'mi gato come atún los jueves' });
+    expect(response.status).toBe(201);
   });
 });

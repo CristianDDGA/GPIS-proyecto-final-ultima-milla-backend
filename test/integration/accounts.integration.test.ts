@@ -7,7 +7,7 @@ import { CapturingEmailSender } from '../support/in-memory-auth.js';
 
 const SECRET = 'integration-test-jwt-secret-1234';
 const ORIGIN = 'http://127.0.0.1:5173';
-const PASSWORD = 'Password123';
+const PASSWORD = 'ClaveSegura2026';
 
 // Verificación de correo, recuperación y cierre de sesiones contra PostgreSQL real (migración 007).
 const describeReal = realDatabase ? describe : describe.skip;
@@ -134,12 +134,12 @@ describeReal('Cuentas · verificación, recuperación y sesiones con PostgreSQL 
     const admin = createFixtureActor('personal');
     const adminToken = tokens.sign({ sub: admin.actorId, role: 'personal', authSubject: admin.authSubject, courierId: null });
     const created = await request(app).post('/auth/users').set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: 'conductor@correo.ficticio.com', password: 'ConductorClave1', role: 'repartidor', displayName: 'Carlos Conductor' });
+      .send({ email: 'conductor@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
     expect(created.status).toBe(201);
     expect(created.body.user.emailVerified).toBe(true);
     expect(runAdminSql("SELECT email_verified_via FROM logistica.app_users WHERE email='conductor@correo.ficticio.com';")).toBe('admin');
     expect(emails.sent).toHaveLength(0);
-    expect((await request(app).post('/auth/login').send({ email: 'conductor@correo.ficticio.com', password: 'ConductorClave1' })).status).toBe(200);
+    expect((await request(app).post('/auth/login').send({ email: 'conductor@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026' })).status).toBe(200);
 
     const reset = await request(app).post(`/auth/users/${created.body.user.id}/reset-password`).set('Authorization', `Bearer ${adminToken}`).send({ newPassword: 'ClaveNueva789' });
     expect(reset.status).toBe(200);

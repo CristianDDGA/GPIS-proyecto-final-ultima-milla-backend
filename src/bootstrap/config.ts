@@ -1,3 +1,4 @@
+import { DEFAULT_JWT_EXPIRES_IN_SECONDS } from '../modules/auth/index.js';
 import type { SmtpConfig } from '../modules/auth/infrastructure/email/smtp-email-sender.js';
 
 export interface AppConfig {
@@ -8,6 +9,7 @@ export interface AppConfig {
   readonly jwtExpiresInSeconds: number;
   readonly authRateLimit: { readonly maxRequests: number; readonly windowMs: number };
   readonly trustProxyHops?: number;
+  readonly loginLockout: { readonly maxFailures: number; readonly lockSeconds: number };
   /** false = modo demo (sin verificación ni SMTP para clientes). */
   readonly emailVerificationRequired: boolean;
   /** console = los correos se escriben en la salida estándar (solo desarrollo). */
@@ -61,7 +63,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     throw new Error(`JWT_SECRET no puede ser un valor de ejemplo ni el secreto público de desarrollo. ${JWT_SECRET_HELP}`);
   }
 
-  const jwtExpiresInSeconds = Number(environment.JWT_EXPIRES_IN_SECONDS ?? '86400');
+  const jwtExpiresInSeconds = Number(environment.JWT_EXPIRES_IN_SECONDS ?? String(DEFAULT_JWT_EXPIRES_IN_SECONDS));
   if (!Number.isInteger(jwtExpiresInSeconds) || jwtExpiresInSeconds < 60) {
     throw new Error('JWT_EXPIRES_IN_SECONDS debe ser un entero mayor o igual a 60.');
   }
@@ -73,6 +75,16 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
   }
   if (!Number.isInteger(authRateLimitWindowMs) || authRateLimitWindowMs < 1_000) {
     throw new Error('AUTH_RATE_LIMIT_WINDOW_MS debe ser un entero mayor o igual a 1000.');
+  }
+
+  // Bloqueo por cuenta: LOGIN_MAX_FAILED_ATTEMPTS fallos en 15 minutos bloquean la cuenta LOGIN_LOCK_SECONDS.
+  const loginMaxFailures = Number(environment.LOGIN_MAX_FAILED_ATTEMPTS ?? '5');
+  const loginLockSeconds = Number(environment.LOGIN_LOCK_SECONDS ?? '300');
+  if (!Number.isInteger(loginMaxFailures) || loginMaxFailures < 3 || loginMaxFailures > 100) {
+    throw new Error('LOGIN_MAX_FAILED_ATTEMPTS debe ser un entero entre 3 y 100.');
+  }
+  if (!Number.isInteger(loginLockSeconds) || loginLockSeconds < 30 || loginLockSeconds > 86_400) {
+    throw new Error('LOGIN_LOCK_SECONDS debe ser un entero entre 30 y 86400.');
   }
 
   // TRUST_PROXY = número de proxies delante de la API (p. ej. 1). Vacío = no confiar en X-Forwarded-For.
@@ -121,6 +133,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     port,
     emailVerificationRequired,
     mail,
+    loginLockout: { maxFailures: loginMaxFailures, lockSeconds: loginLockSeconds },
     ...(trustProxyHops !== undefined ? { trustProxyHops } : {}),
     webOrigin,
     jwtSecret,
