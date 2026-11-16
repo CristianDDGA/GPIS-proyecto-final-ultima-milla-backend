@@ -8,6 +8,7 @@ import type { OrderZonePort } from '../modules/orders/application/ports/order-zo
 import type { TokenRevocationStore } from '../modules/auth/application/ports/token-revocation.port.js';
 import type { TokenService } from '../modules/auth/application/ports/token-service.port.js';
 import { createRbacMiddleware } from './auth.middleware.js';
+import { createRateLimiter } from './rate-limit.middleware.js';
 
 export interface AppDependencies {
   readonly webOrigin: string;
@@ -19,6 +20,8 @@ export interface AppDependencies {
   readonly tokenService?: TokenService;
   readonly tokenRevocationStore?: TokenRevocationStore;
   /** Debe rechazar si PostgreSQL no responde; /health devuelve 503 en ese caso. */
+  /** Límite de intentos por IP en /auth/login y /auth/register; sin valor, no se limita. */
+  readonly authRateLimit?: { readonly maxRequests: number; readonly windowMs: number; readonly now?: () => number };
   readonly checkDatabase?: () => Promise<unknown>;
 }
 
@@ -39,6 +42,8 @@ export function createApp(dependencies: AppDependencies) {
   // Hallazgo ZAP 10021: impide el MIME sniffing de las respuestas JSON.
   app.use((_request, response, next) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
+    // Hallazgo ZAP 10049: las respuestas de la API no deben almacenarse en caché.
+    response.setHeader('Cache-Control', 'no-store');
     next();
   });
   app.use((request, response, next) => {
@@ -61,6 +66,9 @@ export function createApp(dependencies: AppDependencies) {
   });
   app.use(express.json({ limit: '32kb' }));
   app.use(requireJsonObject);
+  if (dependencies.authRateLimit) {
+    app.use(createRateLimiter({ ...dependencies.authRateLimit, paths: ['/auth/login', '/auth/register'] }));
+  }
   app.get('/health', async (_request, response) => {
     if (dependencies.checkDatabase) {
       try {

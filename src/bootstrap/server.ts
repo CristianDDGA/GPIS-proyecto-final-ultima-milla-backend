@@ -18,6 +18,7 @@ const app = database
   ? createPersistedApp(database, config.webOrigin, {
       jwtSecret: config.jwtSecret,
       jwtExpiresInSeconds: config.jwtExpiresInSeconds,
+      authRateLimit: config.authRateLimit,
     })
   : createApp({ webOrigin: config.webOrigin });
 const server = app.listen(config.port, () => {

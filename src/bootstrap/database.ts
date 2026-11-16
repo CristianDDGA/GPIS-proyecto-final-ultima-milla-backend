@@ -6,6 +6,12 @@ export function createDatabaseClient(connectionString: string): PrismaClient {
   const configured = Number(process.env['DB_POOL_MAX'] ?? 25);
   const max = Number.isInteger(configured) && configured > 0 ? configured : 25;
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString, max, connectionTimeoutMillis: 5_000 }),
+    adapter: new PrismaPg({
+      connectionString,
+      max,
+      connectionTimeoutMillis: 5_000,
+      idleTimeoutMillis: 30_000,
+      statement_timeout: 10_000,
+    }),
   });
 }
