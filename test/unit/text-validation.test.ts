@@ -9,6 +9,10 @@ import {
 import { validateRegistration } from '../../src/modules/couriers/domain/courier.js';
 import { validateNewDisplayName, validateNewEmail as validateNewAuthEmail } from '../../src/modules/auth/domain/auth-user.entity.js';
 
+// Carácter de control bidireccional (U+202E) construido en tiempo de ejecución: así el código fuente
+// no contiene caracteres bidi (regla "Trojan Source" de Sonar) y la prueba sigue cubriéndolo.
+const RTL_OVERRIDE = String.fromCodePoint(0x202e);
+
 const ok = (result: { ok: boolean }) => assert.equal(result.ok, true);
 const bad = (result: { ok: boolean }, label: string) => assert.equal(result.ok, false, label);
 
@@ -19,7 +23,7 @@ test('nombres de persona: acepta nombres reales con acentos, apóstrofo, guion y
 });
 
 test('nombres de persona: rechaza emojis, números, símbolos y texto basura', () => {
-  const invalid = ['Juan 😀', '😀', 'Juan2', '123', 'K6 Smoke', 'Ana <script>', 'Ana@Pérez', '', '   ', 'A', "--", "'Ana", 'Ana--Pérez', 'Ana  ', 'Ana\u0000Pérez', 'Ana‮Pérez', 'Ana ❤️', 'x'.repeat(121)];
+  const invalid = ['Juan 😀', '😀', 'Juan2', '123', 'K6 Smoke', 'Ana <script>', 'Ana@Pérez', '', '   ', 'A', "--", "'Ana", 'Ana--Pérez', 'Ana  ', 'Ana\u0000Pérez', `Ana${RTL_OVERRIDE}Pérez`, 'Ana ❤️', 'x'.repeat(121)];
   for (const name of invalid) {
     const result = validatePersonName(name, 'El nombre');
     // 'Ana  ' se normaliza (espacios sobrantes) y es válido; el resto debe rechazarse.
