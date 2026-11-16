@@ -4,10 +4,15 @@ function sendError(response: Response, status: number, code: string, message: st
   response.status(status).json({ code, message, error: { code, message } });
 }
 
+const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH']);
+
 export const requireJsonObject: RequestHandler = (request, response, next) => {
-  if (request.method === 'POST' && /^\/(?:orders|zones)\/?$/i.test(request.path)) {
+  if (BODY_METHODS.has(request.method)) {
     const body: unknown = request.body;
-    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    // Express 5 deja body en undefined cuando no se envió cuerpo: esas rutas validan por su cuenta.
+    // POST /orders y /zones exigen siempre un objeto JSON.
+    const required = request.method === 'POST' && /^\/(?:orders|zones)\/?$/i.test(request.path);
+    if (body === undefined ? required : body === null || typeof body !== 'object' || Array.isArray(body)) {
       sendError(response, 400, 'VALIDATION_ERROR', 'El cuerpo debe ser un objeto JSON.');
       return;
     }

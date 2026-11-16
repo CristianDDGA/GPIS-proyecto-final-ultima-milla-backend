@@ -23,6 +23,7 @@ export interface PersistedAppOptions {
   readonly actorContext?: ActorContextPort;
   readonly jwtSecret?: string;
   readonly jwtExpiresInSeconds?: number;
+  readonly authRateLimit?: { readonly maxRequests: number; readonly windowMs: number };
 }
 
 // Single API: zones, orders, routes, couriers, route-operations and deliveries share one server, one database client and one CORS policy.
@@ -56,6 +57,8 @@ export function createPersistedApp(
 
   return createApp({
     webOrigin,
+    checkDatabase: () => database.$queryRaw`SELECT 1`,
+    ...(options?.authRateLimit ? { authRateLimit: options.authRateLimit } : {}),
     tokenService: auth.tokenService,
     tokenRevocationStore: auth.revocationStore,
     zoneRepository: new PrismaZoneRepository(database),

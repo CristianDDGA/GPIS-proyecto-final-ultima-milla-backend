@@ -4,6 +4,7 @@ export interface AppConfig {
   readonly databaseUrl?: string;
   readonly jwtSecret: string;
   readonly jwtExpiresInSeconds: number;
+  readonly authRateLimit: { readonly maxRequests: number; readonly windowMs: number };
 }
 
 export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
@@ -50,5 +51,21 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     throw new Error('JWT_EXPIRES_IN_SECONDS debe ser un entero mayor o igual a 60.');
   }
 
-  return { port, webOrigin, jwtSecret, jwtExpiresInSeconds, ...(databaseUrl ? { databaseUrl } : {}) };
+  const authRateLimitMax = Number(environment.AUTH_RATE_LIMIT_MAX ?? '20');
+  const authRateLimitWindowMs = Number(environment.AUTH_RATE_LIMIT_WINDOW_MS ?? '60000');
+  if (!Number.isInteger(authRateLimitMax) || authRateLimitMax < 1) {
+    throw new Error('AUTH_RATE_LIMIT_MAX debe ser un entero mayor o igual a 1.');
+  }
+  if (!Number.isInteger(authRateLimitWindowMs) || authRateLimitWindowMs < 1_000) {
+    throw new Error('AUTH_RATE_LIMIT_WINDOW_MS debe ser un entero mayor o igual a 1000.');
+  }
+
+  return {
+    port,
+    webOrigin,
+    jwtSecret,
+    jwtExpiresInSeconds,
+    authRateLimit: { maxRequests: authRateLimitMax, windowMs: authRateLimitWindowMs },
+    ...(databaseUrl ? { databaseUrl } : {}),
+  };
 }
