@@ -56,6 +56,32 @@ la nueva es igual a la actual.
 
 `{ id, authSubject, email, role, publicRole, displayName, isActive, courierId, emailVerified }`
 
+## Gestión de usuarios (solo `personal`)
+
+| Endpoint | Descripción |
+|---|---|
+| `GET /auth/users` | Lista usuarios. Filtros: `role` (`admin`, `repartidor`, `cliente`), `isActive` (`true`/`false`), `q` (texto en correo o nombre, hasta 100 caracteres), `limit` (1 a 100, por defecto 25) y `offset`. Responde `{ items, total, limit, offset }` |
+| `GET /auth/users/:id` | `{ user }` o `404 USER_NOT_FOUND` |
+| `PATCH /auth/users/:id` | `{ isActive: boolean }` activa o desactiva la cuenta. Responde `{ user }`. Es idempotente |
+
+Cada elemento de `items` es el objeto `user` más `createdAt` (ISO UTC) y `emailVerifiedVia` (`code`, `admin`, `legacy`, `demo` o `null`).
+Nunca incluye el hash de la clave. Un cliente o conductor recibe `403 FORBIDDEN`.
+
+Al **desactivar** una cuenta se cierran todas sus sesiones y el login responde `403 USER_INACTIVE`. Reglas de negocio, todas `409`:
+
+| Código | Cuándo |
+|---|---|
+| `CANNOT_DEACTIVATE_SELF` | El administrador intenta desactivar su propia cuenta |
+| `LAST_ADMIN` | Sería el último administrador activo |
+| `USER_HAS_ACTIVE_ROUTE` | Es un repartidor con una ruta asignada o en curso: reasignar o cerrar la ruta antes |
+
+## Registro de eventos de seguridad
+
+El servidor escribe una línea JSON por evento en la salida estándar (`"channel":"security"`): `register`, `email_verified`,
+`login_success`, `login_failed`, `login_locked`, `login_unverified`, `password_reset`, `password_changed`,
+`admin_password_reset`, `user_created_by_admin`, `user_deactivated` y `user_activated`. El correo va enmascarado
+(`a***@dominio.com`) y nunca se registran contraseñas ni códigos. Sirve de evidencia de auditoría y para detectar abuso.
+
 ## Bloqueo por cuenta y política de contraseñas
 
 - **Bloqueo:** 5 inicios de sesión fallidos en 15 minutos bloquean la cuenta 5 minutos. Responde `429 ACCOUNT_LOCKED` con

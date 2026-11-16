@@ -2,6 +2,7 @@ import type { ErrorRequestHandler, Router } from 'express';
 import { createAuthUseCases, type AuthUseCases } from './application/auth.use-cases.js';
 import type { AuthRepository } from './application/ports/auth.repository.port.js';
 import type { EmailSender } from './application/ports/email-sender.port.js';
+import type { SecurityLog } from './application/ports/security-log.port.js';
 import type { TokenRevocationStore } from './application/ports/token-revocation.port.js';
 import type { TokenService } from './application/ports/token-service.port.js';
 import { HmacJwtTokenService } from './infrastructure/crypto/hmac-jwt.token-service.js';
@@ -22,6 +23,8 @@ export interface AuthModuleDependencies {
   /** Por defecto true. false = modo demo: los clientes nacen verificados y no se envía correo. */
   readonly emailVerificationRequired?: boolean;
   readonly codeTtlSeconds?: number;
+  /** Registro de eventos de seguridad. Sin valor no se registra nada. */
+  readonly securityLog?: SecurityLog;
   /** Bloqueo por cuenta tras fallos de login. Por defecto: 5 fallos en 15 min bloquean 5 min. */
   readonly loginLockout?: LoginLockoutOptions;
 }
@@ -52,6 +55,7 @@ export function createAuthModule(dependencies: AuthModuleDependencies): AuthModu
     revocationStore,
     {
       emailSender: dependencies.emailSender ?? new ConsoleEmailSender(),
+      ...(dependencies.securityLog ? { securityLog: dependencies.securityLog } : {}),
       loginAttempts: new InMemoryLoginAttemptStore(dependencies.loginLockout ?? DEFAULT_LOGIN_LOCKOUT),
       codeKey: deriveCodeKey(dependencies.jwtSecret),
       emailVerificationRequired: dependencies.emailVerificationRequired ?? true,

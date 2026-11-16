@@ -7,16 +7,18 @@ import {
   validateOneTimeCode,
   validatePassword,
   validateRole,
+  type AdminUserView,
   type AppRole,
   type AuthUser,
 } from '../domain/auth-user.entity.js';
 import { validateNewPassword } from '../domain/password-policy.js';
 import { buildCodeEmail } from './email-templates.js';
 import { generateOneTimeCode, hashOneTimeCode } from '../infrastructure/crypto/one-time-code.js';
-import type { AuthRepository, CodeCheckResult, CodePurpose } from './ports/auth.repository.port.js';
+import type { AuthRepository, CodeCheckResult, CodePurpose, UserListFilter } from './ports/auth.repository.port.js';
 import type { EmailSender } from './ports/email-sender.port.js';
 import type { LoginAttemptStore } from './ports/login-attempt.port.js';
 import type { PasswordHasher } from './ports/password-hasher.port.js';
+import { maskEmail, type SecurityEvent, type SecurityLog } from './ports/security-log.port.js';
 import type { TokenRevocationStore } from './ports/token-revocation.port.js';
 import type { TokenService } from './ports/token-service.port.js';
 
@@ -38,12 +40,35 @@ export interface AuthUseCasesOptions {
   readonly emailVerificationRequired: boolean;
   readonly codeTtlSeconds?: number;
   readonly log?: (message: string) => void;
+  /** Registro de eventos de seguridad (inicios de sesión, cambios de clave, altas y bajas). */
+  readonly securityLog?: SecurityLog;
+}
+
+/** Quién ejecuta una acción administrativa. */
+export interface AdminActor {
+  readonly role: AppRole;
+  readonly id?: string;
+}
+
+export interface UserListQuery {
+  readonly role?: unknown;
+  readonly isActive?: unknown;
+  readonly q?: unknown;
+  readonly limit?: unknown;
+  readonly offset?: unknown;
+}
+
+export interface UserListPage {
+  readonly items: readonly AdminUserView[];
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
 }
 
 export interface AuthUseCases {
   registerCustomer(input: { email: unknown; password: unknown; displayName?: unknown }): Promise<RegisterResult>;
   registerByAdmin(
-    actor: { role: AppRole },
+    actor: AdminActor,
     input: { email: unknown; password: unknown; role: unknown; displayName?: unknown },
   ): Promise<AuthUser>;
   login(input: { email: unknown; password: unknown }): Promise<AuthSessionResult>;
@@ -52,13 +77,63 @@ export interface AuthUseCases {
   forgotPassword(input: { email: unknown }): Promise<void>;
   resetPassword(input: { email: unknown; code: unknown; newPassword: unknown }): Promise<void>;
   changePassword(userId: string, input: { currentPassword: unknown; newPassword: unknown }): Promise<AuthSessionResult>;
-  adminResetPassword(actor: { role: AppRole }, userId: unknown, input: { newPassword: unknown }): Promise<void>;
+  adminResetPassword(actor: AdminActor, userId: unknown, input: { newPassword: unknown }): Promise<void>;
+  listUsers(actor: AdminActor, query: UserListQuery): Promise<UserListPage>;
+  getUser(actor: AdminActor, userId: unknown): Promise<AdminUserView>;
+  setUserActive(actor: AdminActor, userId: unknown, input: { isActive: unknown }): Promise<AdminUserView>;
   logout(jti: string, expSeconds: number): Promise<void>;
   getMe(userId: string): Promise<AuthUser>;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DEFAULT_CODE_TTL_SECONDS = 900;
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+const MAX_SEARCH_LENGTH = 100;
+
+function requireAdmin(actor: AdminActor, message: string): void {
+  if (actor.role !== 'personal') throw new AuthError('FORBIDDEN', message);
+}
+
+function requireUserId(value: unknown): string {
+  if (typeof value !== 'string' || !UUID_RE.test(value)) {
+    throw new AuthError('VALIDATION_ERROR', 'El identificador de usuario no es válido.');
+  }
+  return value.toLowerCase();
+}
+
+function parseBoundedInteger(value: unknown, field: string, fallback: number, min: number, max: number): number {
+  if (value === undefined) return fallback;
+  const parsed = typeof value === 'string' && /^\d{1,9}$/.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new AuthError('VALIDATION_ERROR', `${field} debe ser un entero entre ${min} y ${max}.`);
+  }
+  return parsed;
+}
+
+function parseUserListFilter(query: UserListQuery): UserListFilter {
+  let isActive: boolean | undefined;
+  if (query.isActive !== undefined) {
+    if (query.isActive !== 'true' && query.isActive !== 'false') {
+      throw new AuthError('VALIDATION_ERROR', 'isActive debe ser true o false.');
+    }
+    isActive = query.isActive === 'true';
+  }
+  let q: string | undefined;
+  if (query.q !== undefined) {
+    if (typeof query.q !== 'string' || query.q.length > MAX_SEARCH_LENGTH) {
+      throw new AuthError('VALIDATION_ERROR', `q debe ser texto de hasta ${MAX_SEARCH_LENGTH} caracteres.`);
+    }
+    q = query.q.trim() === '' ? undefined : query.q.trim();
+  }
+  return {
+    ...(query.role !== undefined ? { role: validateRole(query.role) } : {}),
+    ...(isActive !== undefined ? { isActive } : {}),
+    ...(q !== undefined ? { q } : {}),
+    limit: parseBoundedInteger(query.limit, 'limit', DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE),
+    offset: parseBoundedInteger(query.offset, 'offset', 0, 0, 1_000_000),
+  };
+}
 
 function codeFailure(result: Exclude<CodeCheckResult, 'OK'>): AuthError {
   if (result === 'EXPIRED') return new AuthError('CODE_EXPIRED');
@@ -75,6 +150,10 @@ export function createAuthUseCases(
 ): AuthUseCases {
   const ttlSeconds = options.codeTtlSeconds ?? DEFAULT_CODE_TTL_SECONDS;
   const log = options.log ?? ((message: string) => { process.stderr.write(`${message}\n`); });
+  const securityLog = options.securityLog;
+  function audit(event: SecurityEvent): void {
+    try { securityLog?.(event); } catch { /* el registro nunca rompe una petición */ }
+  }
 
   function issueSession(user: AuthUser): AuthSessionResult {
     const token = tokens.sign({
@@ -132,6 +211,7 @@ export function createAuthUseCases(
         displayName,
         verification: verificationRequired ? 'pending' : 'demo',
       });
+      audit({ type: 'register', email: maskEmail(email), userId: user.id, detail: verificationRequired ? 'pending_verification' : 'demo' });
       if (!verificationRequired) return issueSession(user);
       await sendCode(user, 'verify_email');
       return { user, verificationRequired: true };
@@ -147,7 +227,7 @@ export function createAuthUseCases(
       const displayName = validateNewDisplayName(input.displayName);
       const passwordHash = await hasher.hash(password);
       // Cuenta creada por un administrador: nace verificada (no depende de un correo real).
-      return repository.registerUser({
+      const created = await repository.registerUser({
         authSubject: email,
         email,
         passwordHash,
@@ -155,6 +235,8 @@ export function createAuthUseCases(
         displayName,
         verification: 'admin',
       });
+      audit({ type: 'user_created_by_admin', email: maskEmail(email), userId: created.id, ...(actor.id ? { actorId: actor.id } : {}), detail: role });
+      return created;
     },
 
     async login(input) {
@@ -163,6 +245,7 @@ export function createAuthUseCases(
       // Bloqueo por cuenta: se comprueba antes de mirar la clave, exista o no el correo.
       const lockedFor = await options.loginAttempts.lockedForSeconds(email);
       if (lockedFor > 0) {
+        audit({ type: 'login_locked', email: maskEmail(email) });
         throw new AuthError(
           'ACCOUNT_LOCKED',
           `Demasiados intentos fallidos. Intenta de nuevo en ${Math.ceil(lockedFor / 60)} minuto(s).`,
@@ -174,6 +257,7 @@ export function createAuthUseCases(
         // Se hace el mismo trabajo de hash que con una cuenta real: la duración no revela si el correo existe.
         await hasher.verify(password, await decoyHash());
         await options.loginAttempts.recordFailure(email);
+        audit({ type: 'login_failed', email: maskEmail(email), detail: 'unknown_account' });
         throw new AuthError('INVALID_CREDENTIALS');
       }
       if (!record.isActive) {
@@ -182,14 +266,17 @@ export function createAuthUseCases(
       const valid = await hasher.verify(password, record.passwordHash);
       if (!valid) {
         await options.loginAttempts.recordFailure(email);
+        audit({ type: 'login_failed', email: maskEmail(email), userId: record.id, detail: 'wrong_password' });
         throw new AuthError('INVALID_CREDENTIALS');
       }
       await options.loginAttempts.reset(email);
       // Solo tras comprobar la clave: no revela a un tercero si un correo está sin verificar.
       if (record.emailVerifiedVia === null) {
+        audit({ type: 'login_unverified', email: maskEmail(email), userId: record.id });
         throw new AuthError('EMAIL_NOT_VERIFIED');
       }
       const { passwordHash: _passwordHash, emailVerifiedVia: _via, ...user } = record;
+      audit({ type: 'login_success', email: maskEmail(email), userId: record.id });
       return issueSession(user);
     },
 
@@ -204,6 +291,7 @@ export function createAuthUseCases(
       if (result !== 'OK') throw codeFailure(result);
       const user = await repository.findById(record.id);
       if (!user) throw new AuthError('PERSISTENCE_UNAVAILABLE');
+      audit({ type: 'email_verified', email: maskEmail(email), userId: user.id });
       return issueSession(user);
     },
 
@@ -238,6 +326,7 @@ export function createAuthUseCases(
       const result = await repository.resetPasswordWithCode(record.id, hashCode(record.id, 'reset_password', code), newHash);
       if (result !== 'OK') throw codeFailure(result);
       await invalidateSessions(record.id);
+      audit({ type: 'password_reset', email: maskEmail(email), userId: record.id });
     },
 
     async changePassword(userId, input) {
@@ -259,6 +348,7 @@ export function createAuthUseCases(
         throw new AuthError('UNAUTHORIZED');
       }
       await invalidateSessions(userId);
+      audit({ type: 'password_changed', email: maskEmail(record.email), userId });
       const { passwordHash: _passwordHash, emailVerifiedVia: _via, ...user } = record;
       // Las demás sesiones se cierran; esta recibe un token nuevo para no sacar al usuario de su dispositivo.
       return issueSession(user);
@@ -276,6 +366,44 @@ export function createAuthUseCases(
         throw new AuthError('USER_NOT_FOUND');
       }
       await invalidateSessions(userId.toLowerCase());
+      audit({ type: 'admin_password_reset', userId: userId.toLowerCase(), ...(actor.id ? { actorId: actor.id } : {}) });
+    },
+
+    async listUsers(actor, query) {
+      requireAdmin(actor, 'Solo un administrador puede listar usuarios.');
+      const filter = parseUserListFilter(query);
+      const page = await repository.listUsers(filter);
+      return { items: page.items, total: page.total, limit: filter.limit, offset: filter.offset };
+    },
+
+    async getUser(actor, userId) {
+      requireAdmin(actor, 'Solo un administrador puede consultar usuarios.');
+      const view = await repository.findUserView(requireUserId(userId));
+      if (!view) throw new AuthError('USER_NOT_FOUND');
+      return view;
+    },
+
+    async setUserActive(actor, userId, input) {
+      requireAdmin(actor, 'Solo un administrador puede activar o desactivar usuarios.');
+      const id = requireUserId(userId);
+      if (typeof input.isActive !== 'boolean') {
+        throw new AuthError('VALIDATION_ERROR', 'isActive debe ser true o false.');
+      }
+      if (!input.isActive && actor.id !== undefined && actor.id.toLowerCase() === id) {
+        throw new AuthError('CANNOT_DEACTIVATE_SELF');
+      }
+      const result = await repository.setUserActive(id, input.isActive);
+      if (result === 'NOT_FOUND') throw new AuthError('USER_NOT_FOUND');
+      if (result === 'LAST_ADMIN') throw new AuthError('LAST_ADMIN');
+      if (result === 'HAS_ACTIVE_ROUTE') throw new AuthError('USER_HAS_ACTIVE_ROUTE');
+      if (result === 'OK') {
+        // Al desactivar, la base ya fijó tokens_valid_after; aquí se refresca la caché local de esta instancia.
+        if (!input.isActive) await invalidateSessions(id);
+        audit({ type: input.isActive ? 'user_activated' : 'user_deactivated', userId: id, ...(actor.id ? { actorId: actor.id } : {}) });
+      }
+      const view = await repository.findUserView(id);
+      if (!view) throw new AuthError('USER_NOT_FOUND');
+      return view;
     },
 
     async logout(jti, expSeconds) {

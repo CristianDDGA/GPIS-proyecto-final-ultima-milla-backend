@@ -2,6 +2,7 @@ import type { PrismaDatabaseClient } from '../../../../infrastructure/postgres/p
 import { AuthError } from '../../domain/auth.errors.js';
 import {
   toPublicRole,
+  type AdminUserView,
   type AppRole,
   type AuthUser,
   type AuthUserRecord,
@@ -13,6 +14,8 @@ import type {
   CodeIssueResult,
   CodePurpose,
   RegisterUserInput,
+  SetActiveResult,
+  UserListFilter,
 } from '../../application/ports/auth.repository.port.js';
 
 interface UserRow {
@@ -58,6 +61,36 @@ function getSqlState(error: unknown): string | undefined {
   return undefined;
 }
 
+interface ListRow {
+  readonly id: string;
+  readonly auth_subject: string;
+  readonly email: string | null;
+  readonly role: string;
+  readonly display_name: string | null;
+  readonly is_active: boolean;
+  readonly courier_id: string | null;
+  readonly email_verified_via: string | null;
+  readonly created_at: Date;
+}
+
+function mapListRow(row: ListRow): AdminUserView {
+  const role = row.role as AppRole;
+  return {
+    id: row.id,
+    authSubject: row.auth_subject,
+    email: row.email ?? row.auth_subject,
+    role,
+    publicRole: toPublicRole(role),
+    displayName: row.display_name,
+    isActive: row.is_active,
+    courierId: row.courier_id,
+    emailVerified: row.email_verified_via !== null,
+    emailVerifiedVia: row.email_verified_via as EmailVerifiedVia | null,
+    createdAt: new Date(row.created_at).toISOString(),
+  };
+}
+
+const SET_ACTIVE_RESULTS: ReadonlySet<string> = new Set(['OK', 'UNCHANGED', 'NOT_FOUND', 'LAST_ADMIN', 'HAS_ACTIVE_ROUTE']);
 const CODE_RESULTS: ReadonlySet<string> = new Set(['OK', 'INVALID', 'EXPIRED', 'LOCKED']);
 
 export class PrismaAuthRepository implements AuthRepository {
@@ -178,6 +211,66 @@ export class PrismaAuthRepository implements AuthRepository {
         SELECT logistica.reset_password_with_code(${userId}::uuid, ${codeHash}::text, ${newPasswordHash}::text) AS result
       `;
       return toCodeResult(rows[0]?.result);
+    } catch (error: unknown) {
+      if (error instanceof AuthError) throw error;
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
+  }
+
+  async listUsers(filter: UserListFilter): Promise<{ items: readonly AdminUserView[]; total: number }> {
+    const role = filter.role ?? null;
+    const active = filter.isActive ?? null;
+    const q = filter.q ?? null;
+    try {
+      const rows = await this.database.$queryRaw<ListRow[]>`
+        SELECT u.id, u.auth_subject, u.email, u.role, u.display_name, u.is_active, u.email_verified_via,
+               c.id AS courier_id, u.created_at
+        FROM logistica.app_users u
+        LEFT JOIN logistica.couriers c ON c.user_id = u.id
+        WHERE (${role}::text IS NULL OR u.role = ${role}::text)
+          AND (${active}::boolean IS NULL OR u.is_active = ${active}::boolean)
+          AND (${q}::text IS NULL OR position(lower(${q}::text) in lower(coalesce(u.email, '') || ' ' || coalesce(u.display_name, ''))) > 0)
+        ORDER BY u.created_at DESC, u.id
+        LIMIT ${filter.limit}::integer OFFSET ${filter.offset}::integer
+      `;
+      const counts = await this.database.$queryRaw<Array<{ total: number }>>`
+        SELECT count(*)::integer AS total
+        FROM logistica.app_users u
+        WHERE (${role}::text IS NULL OR u.role = ${role}::text)
+          AND (${active}::boolean IS NULL OR u.is_active = ${active}::boolean)
+          AND (${q}::text IS NULL OR position(lower(${q}::text) in lower(coalesce(u.email, '') || ' ' || coalesce(u.display_name, ''))) > 0)
+      `;
+      return { items: rows.map(mapListRow), total: Number(counts[0]?.total ?? 0) };
+    } catch {
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
+  }
+
+  async findUserView(id: string): Promise<AdminUserView | null> {
+    try {
+      const rows = await this.database.$queryRaw<ListRow[]>`
+        SELECT u.id, u.auth_subject, u.email, u.role, u.display_name, u.is_active, u.email_verified_via,
+               c.id AS courier_id, u.created_at
+        FROM logistica.app_users u
+        LEFT JOIN logistica.couriers c ON c.user_id = u.id
+        WHERE u.id = ${id}::uuid
+        LIMIT 1
+      `;
+      const row = rows[0];
+      return row ? mapListRow(row) : null;
+    } catch {
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
+  }
+
+  async setUserActive(userId: string, active: boolean): Promise<SetActiveResult> {
+    try {
+      const rows = await this.database.$queryRaw<Array<{ result: string }>>`
+        SELECT logistica.set_app_user_active(${userId}::uuid, ${active}::boolean) AS result
+      `;
+      const result = rows[0]?.result;
+      if (result === undefined || !SET_ACTIVE_RESULTS.has(result)) throw new AuthError('PERSISTENCE_UNAVAILABLE');
+      return result as SetActiveResult;
     } catch (error: unknown) {
       if (error instanceof AuthError) throw error;
       throw new AuthError('PERSISTENCE_UNAVAILABLE');

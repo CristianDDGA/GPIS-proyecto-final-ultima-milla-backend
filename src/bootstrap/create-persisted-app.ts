@@ -18,6 +18,7 @@ import type { ActorContextPort } from '../modules/deliveries/application/ports/a
 import { createAuthModule } from '../modules/auth/index.js';
 import { PrismaAuthRepository } from '../modules/auth/infrastructure/postgres/prisma-auth.repository.js';
 import type { EmailSender } from '../modules/auth/application/ports/email-sender.port.js';
+import type { SecurityLog } from '../modules/auth/application/ports/security-log.port.js';
 import { PrismaTokenRevocationStore } from '../modules/auth/infrastructure/postgres/prisma-token-revocation.store.js';
 
 export interface PersistedAppOptions {
@@ -31,6 +32,8 @@ export interface PersistedAppOptions {
   /** Por defecto true; false = modo demo. */
   readonly emailVerificationRequired?: boolean;
   readonly loginLockout?: { readonly maxFailures: number; readonly lockSeconds: number };
+  /** Registro de eventos de seguridad (una línea JSON por evento en server.ts). */
+  readonly securityLog?: SecurityLog;
 }
 
 // Sin secreto de respaldo: un valor fijo en el código permitiría falsificar tokens de administrador.
@@ -70,6 +73,7 @@ export function createPersistedApp(
     ...(options?.jwtExpiresInSeconds !== undefined ? { jwtExpiresInSeconds: options.jwtExpiresInSeconds } : {}),
     ...(options?.emailSender ? { emailSender: options.emailSender } : {}),
     ...(options?.loginLockout ? { loginLockout: options.loginLockout } : {}),
+    ...(options?.securityLog ? { securityLog: options.securityLog } : {}),
     ...(options?.emailVerificationRequired !== undefined ? { emailVerificationRequired: options.emailVerificationRequired } : {}),
   });
 

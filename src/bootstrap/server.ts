@@ -3,6 +3,7 @@ import { loadConfig } from './config.js';
 import { createDatabaseClient } from './database.js';
 import { createPersistedApp } from './create-persisted-app.js';
 import { ConsoleEmailSender } from '../modules/auth/infrastructure/email/console-email-sender.js';
+import { createJsonSecurityLog } from '../modules/auth/infrastructure/logging/json-security-log.js';
 import { SmtpEmailSender } from '../modules/auth/infrastructure/email/smtp-email-sender.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -23,6 +24,7 @@ const app = database
       authRateLimit: config.authRateLimit,
       emailVerificationRequired: config.emailVerificationRequired,
       loginLockout: config.loginLockout,
+      securityLog: createJsonSecurityLog(),
       emailSender: config.mail.transport === 'smtp' ? new SmtpEmailSender(config.mail.smtp) : new ConsoleEmailSender(),
       ...(config.trustProxyHops !== undefined ? { trustProxyHops: config.trustProxyHops } : {}),
     })
