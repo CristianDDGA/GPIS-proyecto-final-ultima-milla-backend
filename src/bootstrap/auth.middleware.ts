@@ -141,7 +141,7 @@ export function createRbacMiddleware(
     }
 
     void revocationStore
-      .isRevoked(actor.jti)
+      .isRevoked(actor.jti, { sub: actor.sub, iat: actor.iat })
       .then((revoked) => {
         if (revoked) {
           sendAuthMiddlewareError(response, 401, 'UNAUTHORIZED', 'El token de acceso ha sido revocado.');

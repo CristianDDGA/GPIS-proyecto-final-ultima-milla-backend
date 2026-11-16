@@ -14,10 +14,16 @@ export interface AuthUser {
   readonly displayName: string | null;
   readonly isActive: boolean;
   readonly courierId: string | null;
+  /** true cuando el correo está verificado (por código, por un administrador, en modo demo o por ser anterior). */
+  readonly emailVerified: boolean;
 }
+
+export type EmailVerifiedVia = 'code' | 'admin' | 'legacy' | 'demo';
 
 export interface AuthUserRecord extends AuthUser {
   readonly passwordHash: string | null;
+  /** null mientras el correo no esté verificado. Solo 'code' prueba que el usuario controla el correo. */
+  readonly emailVerifiedVia: EmailVerifiedVia | null;
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -57,6 +63,14 @@ export function validateNewDisplayName(value: unknown): string | null {
   const result = validatePersonName(value, 'El nombre');
   if (!result.ok) throw new AuthError('VALIDATION_ERROR', result.reason);
   return result.value;
+}
+
+/** Código de un solo uso enviado por correo: exactamente 6 dígitos. */
+export function validateOneTimeCode(value: unknown): string {
+  if (typeof value !== 'string' || !/^\d{6}$/.test(value.trim())) {
+    throw new AuthError('VALIDATION_ERROR', 'El código debe tener exactamente 6 dígitos.');
+  }
+  return value.trim();
 }
 
 export function validatePassword(value: unknown): string {

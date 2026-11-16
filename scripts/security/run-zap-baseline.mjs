@@ -32,7 +32,8 @@ async function inner() {
     cwd: root,
     stdio: 'inherit',
     // Secreto efímero por ejecución: la API ya no arranca sin JWT_SECRET y no debe usar uno fijo.
-    env: { ...process.env, PORT: port, DATABASE_URL: databaseUrl, JWT_SECRET: process.env.JWT_SECRET ?? randomBytes(48).toString('base64url') },
+    // EMAIL_VERIFICATION_REQUIRED=false: el hook de ZAP se registra y entra sin bandeja de correo.
+    env: { ...process.env, PORT: port, DATABASE_URL: databaseUrl, EMAIL_VERIFICATION_REQUIRED: 'false', JWT_SECRET: process.env.JWT_SECRET ?? randomBytes(48).toString('base64url') },
   });
   const apiExited = new Promise((_, reject) => api.once('exit', (code) => reject(new Error(`La API termino antes del escaneo (codigo ${code}).`))));
   apiExited.catch(() => {});

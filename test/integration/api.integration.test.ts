@@ -154,7 +154,9 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
     expect(missingCancel.status).toBe(404);
     expectEnvelope(missingCancel.body, 'ROUTE_NOT_FOUND');
 
-    const reg = await request(app)
+    // Modo demo (sin verificación de correo): el registro devuelve token; la verificación se prueba en accounts.integration.
+    const demoApp = createPersistedApp(database!, WEB_ORIGIN, { jwtSecret: TEST_JWT_SECRET, emailVerificationRequired: false });
+    const reg = await request(demoApp)
       .post('/auth/register')
       .send({ email: `logout-pg-${randomUUID()}@test.com`, password: 'Password123' });
     expect(reg.status).toBe(201);

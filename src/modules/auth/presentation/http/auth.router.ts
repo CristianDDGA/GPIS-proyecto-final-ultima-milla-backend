@@ -10,9 +10,16 @@ const STATUS_BY_CODE: Record<AuthErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   USER_INACTIVE: 403,
+  EMAIL_NOT_VERIFIED: 403,
+  INVALID_CODE: 400,
+  CODE_EXPIRED: 400,
+  CODE_LOCKED: 429,
+  USER_NOT_FOUND: 404,
   EMAIL_ALREADY_EXISTS: 409,
   PERSISTENCE_UNAVAILABLE: 503,
 };
+
+const GENERIC_CODE_MESSAGE = 'Si la cuenta existe y puede recibir el código, lo enviaremos al correo indicado.';
 
 function bodyObject(request: Request): Record<string, unknown> {
   const value: unknown = request.body;
@@ -36,7 +43,7 @@ async function extractBearerToken(
     throw new AuthError('UNAUTHORIZED', 'Cabecera Authorization Bearer inválida.');
   }
   const payload = tokens.verify(match[1]);
-  if (await revocationStore.isRevoked(payload.jti)) {
+  if (await revocationStore.isRevoked(payload.jti, { sub: payload.sub, iat: payload.iat })) {
     throw new AuthError('UNAUTHORIZED', 'El token de acceso ha sido revocado.');
   }
   return payload;
@@ -124,6 +131,74 @@ export function createAuthRouter(
         },
       );
       response.status(201).json({ user });
+    }),
+  );
+
+  // Confirma el correo con el código de 6 dígitos y abre sesión.
+  router.post(
+    '/verify-email',
+    route(async (request, response) => {
+      const input = bodyObject(request);
+      const session = await useCases.verifyEmail({ email: input['email'], code: input['code'] });
+      response.status(200).json(session);
+    }),
+  );
+
+  // Respuesta genérica (202) exista o no la cuenta: no revela qué correos están registrados.
+  router.post(
+    '/resend-verification',
+    route(async (request, response) => {
+      const input = bodyObject(request);
+      await useCases.resendVerification({ email: input['email'] });
+      response.status(202).json({ message: GENERIC_CODE_MESSAGE });
+    }),
+  );
+
+  router.post(
+    '/forgot-password',
+    route(async (request, response) => {
+      const input = bodyObject(request);
+      await useCases.forgotPassword({ email: input['email'] });
+      response.status(202).json({ message: GENERIC_CODE_MESSAGE });
+    }),
+  );
+
+  router.post(
+    '/reset-password',
+    route(async (request, response) => {
+      const input = bodyObject(request);
+      await useCases.resetPassword({
+        email: input['email'],
+        code: input['code'],
+        newPassword: input['newPassword'],
+      });
+      response.status(200).json({ ok: true });
+    }),
+  );
+
+  router.post(
+    '/change-password',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      const input = bodyObject(request);
+      const session = await useCases.changePassword(claims.sub, {
+        currentPassword: input['currentPassword'],
+        newPassword: input['newPassword'],
+      });
+      response.status(200).json(session);
+    }),
+  );
+
+  // Un administrador restablece la clave de otro usuario (p. ej. un conductor con correo ficticio).
+  router.post(
+    '/users/:id/reset-password',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      const input = bodyObject(request);
+      await useCases.adminResetPassword({ role: claims.role }, request.params['id'], {
+        newPassword: input['newPassword'],
+      });
+      response.status(200).json({ ok: true });
     }),
   );
 
