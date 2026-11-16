@@ -3,6 +3,7 @@
 // Levanta PostgreSQL efimero con el paquete canonico (scripts/run-postgres-integration.mjs),
 // arranca la API en :3000, ejecuta ZAP (Docker) y deja el reporte en reports/.
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
@@ -30,7 +31,8 @@ async function inner() {
   const api = spawn(process.execPath, ['--import=tsx', 'src/bootstrap/server.ts'], {
     cwd: root,
     stdio: 'inherit',
-    env: { ...process.env, PORT: port, DATABASE_URL: databaseUrl },
+    // Secreto efímero por ejecución: la API ya no arranca sin JWT_SECRET y no debe usar uno fijo.
+    env: { ...process.env, PORT: port, DATABASE_URL: databaseUrl, JWT_SECRET: process.env.JWT_SECRET ?? randomBytes(48).toString('base64url') },
   });
   const apiExited = new Promise((_, reject) => api.once('exit', (code) => reject(new Error(`La API termino antes del escaneo (codigo ${code}).`))));
   apiExited.catch(() => {});

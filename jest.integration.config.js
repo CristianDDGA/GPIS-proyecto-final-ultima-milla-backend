@@ -15,5 +15,7 @@ export default {
       },
     ],
   },
+  // Las pruebas con PostgreSQL real encadenan varias peticiones; 5 s (valor por defecto) daba falsos fallos.
+  testTimeout: 20_000,
   verbose: true,
 };

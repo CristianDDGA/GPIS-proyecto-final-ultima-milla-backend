@@ -8,6 +8,12 @@ export interface AppConfig {
   readonly trustProxyHops?: number;
 }
 
+const JWT_SECRET_MIN_LENGTH = 32;
+const JWT_SECRET_HELP =
+  "Genera uno con: node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\" y guárdalo en .env (nunca en Git).";
+// Secretos que estuvieron en el código o en ejemplos públicos: cualquiera podría falsificar tokens con ellos.
+const KNOWN_INSECURE_SECRETS = new Set(['dev-only-jwt-secret-change-in-prod']);
+
 export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
   const port = Number(environment.PORT ?? '3000');
   const webOrigin = environment.WEB_ORIGIN ?? 'http://127.0.0.1:5173';
@@ -38,14 +44,16 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     }
   }
 
-  const rawSecret = environment.JWT_SECRET;
-  if (rawSecret !== undefined && rawSecret.length < 16) {
-    throw new Error('JWT_SECRET debe tener al menos 16 caracteres.');
+  const jwtSecret = environment.JWT_SECRET;
+  if (jwtSecret === undefined || jwtSecret.trim() === '') {
+    throw new Error(`JWT_SECRET es obligatorio. ${JWT_SECRET_HELP}`);
   }
-  if (rawSecret === undefined && environment.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET es obligatorio en producción.');
+  if (jwtSecret.length < JWT_SECRET_MIN_LENGTH) {
+    throw new Error(`JWT_SECRET debe tener al menos ${JWT_SECRET_MIN_LENGTH} caracteres. ${JWT_SECRET_HELP}`);
   }
-  const jwtSecret = rawSecret ?? 'dev-only-jwt-secret-change-in-prod';
+  if (KNOWN_INSECURE_SECRETS.has(jwtSecret) || /^REEMPLAZAR/i.test(jwtSecret)) {
+    throw new Error(`JWT_SECRET no puede ser un valor de ejemplo ni el secreto público de desarrollo. ${JWT_SECRET_HELP}`);
+  }
 
   const jwtExpiresInSeconds = Number(environment.JWT_EXPIRES_IN_SECONDS ?? '86400');
   if (!Number.isInteger(jwtExpiresInSeconds) || jwtExpiresInSeconds < 60) {

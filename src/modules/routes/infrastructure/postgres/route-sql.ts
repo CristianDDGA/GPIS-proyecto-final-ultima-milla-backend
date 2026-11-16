@@ -1,3 +1,4 @@
+import { getRequestActor } from '../../../../bootstrap/auth.middleware.js';
 import type { RouteListQuery, RoutePlanCommand } from '../../domain/route.entity.js';
 
 export interface RouteSqlQuery {
@@ -7,6 +8,14 @@ export interface RouteSqlQuery {
 
 function sql(strings: TemplateStringsArray, ...values: unknown[]): RouteSqlQuery {
   return { strings, values };
+}
+
+// Un repartidor solo ve sus propias rutas. Sin courierId vinculado se usa un UUID imposible (sin filas).
+const NO_COURIER = '00000000-0000-0000-0000-000000000000';
+function courierScope(): string | null {
+  const actor = getRequestActor();
+  if (actor?.role !== 'repartidor') return null;
+  return actor.courierId ?? NO_COURIER;
 }
 
 // Only the original function and views granted to logistica_app; every value is a bound parameter.
@@ -20,6 +29,7 @@ export const logisticaRouteSql = {
   list(query: RouteListQuery): RouteSqlQuery {
     const date = query.serviceDate ?? null;
     const zone = query.zoneId ?? null;
+    const courier = courierScope();
     return sql`SELECT id::text AS "id", zone_id::text AS "zoneId",
         to_char(service_date, 'YYYY-MM-DD') AS "serviceDate",
         capacity_limit AS "capacityLimit", status, courier_id::text AS "courierId",
@@ -27,12 +37,14 @@ export const logisticaRouteSql = {
       FROM logistica.route_summary
       WHERE (${date}::date IS NULL OR service_date = ${date}::date)
         AND (${zone}::uuid IS NULL OR zone_id = ${zone}::uuid)
+        AND (${courier}::uuid IS NULL OR courier_id = ${courier}::uuid)
       ORDER BY id
       LIMIT ${query.limit}::integer OFFSET ${query.offset}::integer`;
   },
 
   // Route and current stops are read in one statement, so both come from the same snapshot.
   detail(id: string): RouteSqlQuery {
+    const courier = courierScope();
     return sql`SELECT r.id::text AS "id", r.zone_id::text AS "zoneId",
         to_char(r.service_date, 'YYYY-MM-DD') AS "serviceDate",
         r.capacity_limit AS "capacityLimit", r.status, r.courier_id::text AS "courierId",
@@ -52,6 +64,7 @@ export const logisticaRouteSql = {
           WHERE s.route_id = r.id
         ), '[]'::json) AS "stops"
       FROM logistica.route_summary r
-      WHERE r.id = ${id}::uuid`;
+      WHERE r.id = ${id}::uuid
+        AND (${courier}::uuid IS NULL OR r.courier_id = ${courier}::uuid)`;
   },
 };
