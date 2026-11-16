@@ -182,7 +182,8 @@ async function main() {
       const id = rows[0].id;
       await runRaw(
         db,
-        `SELECT logistica.set_courier_availability($1::uuid, true)`,
+        // La función devuelve void; Prisma no deserializa ese tipo, por eso el cast a text.
+        `SELECT logistica.set_courier_availability($1::uuid, true)::text`,
         [id],
       );
       courierIds.push(id);
