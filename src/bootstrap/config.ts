@@ -1,3 +1,5 @@
+import type { SmtpConfig } from '../modules/auth/infrastructure/email/smtp-email-sender.js';
+
 export interface AppConfig {
   readonly port: number;
   readonly webOrigin: string;
@@ -6,6 +8,10 @@ export interface AppConfig {
   readonly jwtExpiresInSeconds: number;
   readonly authRateLimit: { readonly maxRequests: number; readonly windowMs: number };
   readonly trustProxyHops?: number;
+  /** false = modo demo (sin verificación ni SMTP para clientes). */
+  readonly emailVerificationRequired: boolean;
+  /** console = los correos se escriben en la salida estándar (solo desarrollo). */
+  readonly mail: { readonly transport: 'console' } | { readonly transport: 'smtp'; readonly smtp: SmtpConfig };
 }
 
 const JWT_SECRET_MIN_LENGTH = 32;
@@ -78,8 +84,43 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     }
   }
 
+  // Modo demo: EMAIL_VERIFICATION_REQUIRED=false deja a los clientes verificados al registrarse y no usa SMTP.
+  const verificationFlag = (environment.EMAIL_VERIFICATION_REQUIRED ?? 'true').trim().toLowerCase();
+  if (verificationFlag !== 'true' && verificationFlag !== 'false') {
+    throw new Error('EMAIL_VERIFICATION_REQUIRED debe ser true o false.');
+  }
+  const emailVerificationRequired = verificationFlag === 'true';
+
+  let mail: AppConfig['mail'] = { transport: 'console' };
+  const smtpHost = environment.SMTP_HOST?.trim();
+  if (smtpHost) {
+    const smtpPort = Number(environment.SMTP_PORT ?? '587');
+    if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65_535) {
+      throw new Error('SMTP_PORT debe ser un entero entre 1 y 65535.');
+    }
+    const from = environment.MAIL_FROM?.trim();
+    if (!from) {
+      throw new Error('MAIL_FROM es obligatorio cuando se configura SMTP_HOST (por ejemplo: "Última Milla <no-reply@tudominio.com>").');
+    }
+    const user = environment.SMTP_USER?.trim();
+    mail = {
+      transport: 'smtp',
+      smtp: {
+        host: smtpHost,
+        port: smtpPort,
+        secure: (environment.SMTP_SECURE ?? (smtpPort === 465 ? 'true' : 'false')).trim().toLowerCase() === 'true',
+        from,
+        ...(user ? { user, password: environment.SMTP_PASS ?? '' } : {}),
+      },
+    };
+  } else if (environment.NODE_ENV === 'production' && emailVerificationRequired) {
+    throw new Error('En producción, con verificación de correo activa, SMTP_HOST es obligatorio.');
+  }
+
   return {
     port,
+    emailVerificationRequired,
+    mail,
     ...(trustProxyHops !== undefined ? { trustProxyHops } : {}),
     webOrigin,
     jwtSecret,

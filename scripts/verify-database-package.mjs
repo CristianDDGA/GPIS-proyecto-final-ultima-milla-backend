@@ -12,6 +12,7 @@ const requiredFiles = [
   'database/migrations/004_permissions.sql',
   'database/migrations/005_auth.sql',
   'database/migrations/006_auth_revocation.sql',
+  'database/migrations/007_email_verification.sql',
   'database/scripts/migrate.sh',
   'database/seeds/demo.sql',
   'database/tests/integration.sql',

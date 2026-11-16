@@ -14,13 +14,30 @@ export interface AuthUser {
   readonly displayName: string | null;
   readonly isActive: boolean;
   readonly courierId: string | null;
+  /** true cuando el correo está verificado (por código, por un administrador, en modo demo o por ser anterior). */
+  readonly emailVerified: boolean;
 }
+
+export type EmailVerifiedVia = 'code' | 'admin' | 'legacy' | 'demo';
 
 export interface AuthUserRecord extends AuthUser {
   readonly passwordHash: string | null;
+  /** null mientras el correo no esté verificado. Solo 'code' prueba que el usuario controla el correo. */
+  readonly emailVerifiedVia: EmailVerifiedVia | null;
 }
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Forma mínima de un correo (un solo @, sin espacios, con un punto con texto a ambos lados en el dominio).
+// Sin expresión regular con cuantificadores anidados: evita el backtracking con entradas largas.
+function hasEmailShape(value: string): boolean {
+  const at = value.indexOf('@');
+  if (at <= 0 || at !== value.lastIndexOf('@')) return false;
+  if (/\s/.test(value)) return false;
+  const domain = value.slice(at + 1);
+  for (let index = 1; index < domain.length - 1; index += 1) {
+    if (domain[index] === '.') return true;
+  }
+  return false;
+}
 
 export function toPublicRole(role: AppRole): PublicRole {
   return role === 'personal' ? 'admin' : role;
@@ -37,7 +54,7 @@ export function validateEmail(value: unknown): string {
     throw new AuthError('VALIDATION_ERROR', 'El correo electrónico es obligatorio.');
   }
   const normalized = value.trim().toLowerCase();
-  if (normalized.length === 0 || normalized.length > 254 || !EMAIL_REGEX.test(normalized)) {
+  if (normalized.length === 0 || normalized.length > 254 || !hasEmailShape(normalized)) {
     throw new AuthError('VALIDATION_ERROR', 'El formato del correo electrónico no es válido.');
   }
   return normalized;
@@ -57,6 +74,14 @@ export function validateNewDisplayName(value: unknown): string | null {
   const result = validatePersonName(value, 'El nombre');
   if (!result.ok) throw new AuthError('VALIDATION_ERROR', result.reason);
   return result.value;
+}
+
+/** Código de un solo uso enviado por correo: exactamente 6 dígitos. */
+export function validateOneTimeCode(value: unknown): string {
+  if (typeof value !== 'string' || !/^\d{6}$/.test(value.trim())) {
+    throw new AuthError('VALIDATION_ERROR', 'El código debe tener exactamente 6 dígitos.');
+  }
+  return value.trim();
 }
 
 export function validatePassword(value: unknown): string {

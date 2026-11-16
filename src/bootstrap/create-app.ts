@@ -29,6 +29,17 @@ export interface AppDependencies {
 
 const HEALTH_DB_TIMEOUT_MS = 2_000;
 
+// Endpoints públicos de cuentas: cada uno cuenta aparte por IP. Los que envían correo o prueban códigos
+// quedan limitados para que no sirvan de relevo de spam ni de fuerza bruta.
+const AUTH_RATE_LIMITED_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/verify-email',
+  '/auth/resend-verification',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+];
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
@@ -72,7 +83,7 @@ export function createApp(dependencies: AppDependencies) {
   app.use(express.json({ limit: '32kb' }));
   app.use(requireJsonObject);
   if (dependencies.authRateLimit) {
-    app.use(createRateLimiter({ ...dependencies.authRateLimit, paths: ['/auth/login', '/auth/register'] }));
+    app.use(createRateLimiter({ ...dependencies.authRateLimit, paths: AUTH_RATE_LIMITED_PATHS }));
   }
   app.get('/health', async (_request, response) => {
     if (dependencies.checkDatabase) {

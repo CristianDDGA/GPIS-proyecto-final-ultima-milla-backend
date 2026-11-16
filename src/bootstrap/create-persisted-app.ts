@@ -17,6 +17,7 @@ import { RequestActorContext } from '../modules/deliveries/infrastructure/contex
 import type { ActorContextPort } from '../modules/deliveries/application/ports/actor-context.port.js';
 import { createAuthModule } from '../modules/auth/index.js';
 import { PrismaAuthRepository } from '../modules/auth/infrastructure/postgres/prisma-auth.repository.js';
+import type { EmailSender } from '../modules/auth/application/ports/email-sender.port.js';
 import { PrismaTokenRevocationStore } from '../modules/auth/infrastructure/postgres/prisma-token-revocation.store.js';
 
 export interface PersistedAppOptions {
@@ -25,6 +26,10 @@ export interface PersistedAppOptions {
   readonly jwtExpiresInSeconds?: number;
   readonly authRateLimit?: { readonly maxRequests: number; readonly windowMs: number };
   readonly trustProxyHops?: number;
+  /** Sin valor, los correos se escriben en la consola (solo desarrollo). */
+  readonly emailSender?: EmailSender;
+  /** Por defecto true; false = modo demo. */
+  readonly emailVerificationRequired?: boolean;
 }
 
 // Sin secreto de respaldo: un valor fijo en el código permitiría falsificar tokens de administrador.
@@ -62,6 +67,8 @@ export function createPersistedApp(
     revocationStore: new PrismaTokenRevocationStore(database),
     jwtSecret: requireJwtSecret(options?.jwtSecret ?? process.env['JWT_SECRET']),
     ...(options?.jwtExpiresInSeconds !== undefined ? { jwtExpiresInSeconds: options.jwtExpiresInSeconds } : {}),
+    ...(options?.emailSender ? { emailSender: options.emailSender } : {}),
+    ...(options?.emailVerificationRequired !== undefined ? { emailVerificationRequired: options.emailVerificationRequired } : {}),
   });
 
   return createApp({

@@ -42,7 +42,7 @@ function assertUuid(id: string): string {
   return id.toLowerCase();
 }
 
-function runAdminSql(sql: string): string {
+export function runAdminSql(sql: string): string {
   const container = process.env['TEST_DATABASE_CONTAINER'] ?? '';
   const project = process.env['TEST_DATABASE_PROJECT'] ?? '';
   if (
