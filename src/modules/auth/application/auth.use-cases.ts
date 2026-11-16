@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { AuthError } from '../domain/auth.errors.js';
 import {
   validateEmail,
@@ -9,10 +10,12 @@ import {
   type AppRole,
   type AuthUser,
 } from '../domain/auth-user.entity.js';
+import { validateNewPassword } from '../domain/password-policy.js';
 import { buildCodeEmail } from './email-templates.js';
 import { generateOneTimeCode, hashOneTimeCode } from '../infrastructure/crypto/one-time-code.js';
 import type { AuthRepository, CodeCheckResult, CodePurpose } from './ports/auth.repository.port.js';
 import type { EmailSender } from './ports/email-sender.port.js';
+import type { LoginAttemptStore } from './ports/login-attempt.port.js';
 import type { PasswordHasher } from './ports/password-hasher.port.js';
 import type { TokenRevocationStore } from './ports/token-revocation.port.js';
 import type { TokenService } from './ports/token-service.port.js';
@@ -27,6 +30,8 @@ export type RegisterResult = AuthSessionResult | { readonly user: AuthUser; read
 
 export interface AuthUseCasesOptions {
   readonly emailSender: EmailSender;
+  /** Bloqueo temporal por cuenta tras inicios de sesión fallidos. */
+  readonly loginAttempts: LoginAttemptStore;
   /** Clave para hashear los códigos (ver deriveCodeKey). */
   readonly codeKey: string;
   /** false = modo demo: los clientes quedan verificados al registrarse y no se envía correo. */
@@ -101,6 +106,13 @@ export function createAuthUseCases(
     }
   }
 
+  // Hash de una clave aleatoria, calculado una sola vez, para igualar el tiempo de login con un correo inexistente.
+  let decoy: Promise<string> | undefined;
+  function decoyHash(): Promise<string> {
+    decoy ??= hasher.hash(randomUUID());
+    return decoy;
+  }
+
   async function invalidateSessions(userId: string): Promise<void> {
     await revocationStore.revokeUserSessions(userId, Math.floor(Date.now() / 1000));
   }
@@ -108,7 +120,7 @@ export function createAuthUseCases(
   return {
     async registerCustomer(input) {
       const email = validateNewEmail(input.email);
-      const password = validatePassword(input.password);
+      const password = validateNewPassword(input.password, email);
       const displayName = validateNewDisplayName(input.displayName);
       const passwordHash = await hasher.hash(password);
       const verificationRequired = options.emailVerificationRequired;
@@ -130,7 +142,7 @@ export function createAuthUseCases(
         throw new AuthError('FORBIDDEN', 'Solo un administrador puede crear usuarios con rol asignado.');
       }
       const email = validateNewEmail(input.email);
-      const password = validatePassword(input.password);
+      const password = validateNewPassword(input.password, email);
       const role = validateRole(input.role);
       const displayName = validateNewDisplayName(input.displayName);
       const passwordHash = await hasher.hash(password);
@@ -148,8 +160,20 @@ export function createAuthUseCases(
     async login(input) {
       const email = validateEmail(input.email);
       const password = validatePassword(input.password);
+      // Bloqueo por cuenta: se comprueba antes de mirar la clave, exista o no el correo.
+      const lockedFor = await options.loginAttempts.lockedForSeconds(email);
+      if (lockedFor > 0) {
+        throw new AuthError(
+          'ACCOUNT_LOCKED',
+          `Demasiados intentos fallidos. Intenta de nuevo en ${Math.ceil(lockedFor / 60)} minuto(s).`,
+          lockedFor,
+        );
+      }
       const record = await repository.findByEmail(email);
       if (!record || !record.passwordHash) {
+        // Se hace el mismo trabajo de hash que con una cuenta real: la duración no revela si el correo existe.
+        await hasher.verify(password, await decoyHash());
+        await options.loginAttempts.recordFailure(email);
         throw new AuthError('INVALID_CREDENTIALS');
       }
       if (!record.isActive) {
@@ -157,8 +181,10 @@ export function createAuthUseCases(
       }
       const valid = await hasher.verify(password, record.passwordHash);
       if (!valid) {
+        await options.loginAttempts.recordFailure(email);
         throw new AuthError('INVALID_CREDENTIALS');
       }
+      await options.loginAttempts.reset(email);
       // Solo tras comprobar la clave: no revela a un tercero si un correo está sin verificar.
       if (record.emailVerifiedVia === null) {
         throw new AuthError('EMAIL_NOT_VERIFIED');
@@ -202,7 +228,7 @@ export function createAuthUseCases(
     async resetPassword(input) {
       const email = validateEmail(input.email);
       const code = validateOneTimeCode(input.code);
-      const password = validatePassword(input.newPassword);
+      const password = validateNewPassword(input.newPassword, email);
       // El hash se calcula antes de buscar al usuario para que la duración no revele si el correo existe.
       const newHash = await hasher.hash(password);
       const record = await repository.findByEmail(email);
@@ -218,11 +244,11 @@ export function createAuthUseCases(
       if (typeof input.currentPassword !== 'string' || input.currentPassword.length === 0) {
         throw new AuthError('VALIDATION_ERROR', 'La contraseña actual es obligatoria.');
       }
-      const newPassword = validatePassword(input.newPassword);
       const record = await repository.findRecordById(userId);
       if (!record || !record.isActive || !record.passwordHash) {
         throw new AuthError('UNAUTHORIZED');
       }
+      const newPassword = validateNewPassword(input.newPassword, record.email);
       if (!(await hasher.verify(input.currentPassword, record.passwordHash))) {
         throw new AuthError('VALIDATION_ERROR', 'La contraseña actual no es correcta.');
       }
@@ -245,7 +271,7 @@ export function createAuthUseCases(
       if (typeof userId !== 'string' || !UUID_RE.test(userId)) {
         throw new AuthError('VALIDATION_ERROR', 'El identificador de usuario no es válido.');
       }
-      const newPassword = validatePassword(input.newPassword);
+      const newPassword = validateNewPassword(input.newPassword);
       if (!(await repository.setPassword(userId.toLowerCase(), await hasher.hash(newPassword)))) {
         throw new AuthError('USER_NOT_FOUND');
       }

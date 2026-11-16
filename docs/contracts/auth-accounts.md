@@ -56,6 +56,18 @@ la nueva es igual a la actual.
 
 `{ id, authSubject, email, role, publicRole, displayName, isActive, courierId, emailVerified }`
 
+## Bloqueo por cuenta y política de contraseñas
+
+- **Bloqueo:** 5 inicios de sesión fallidos en 15 minutos bloquean la cuenta 5 minutos. Responde `429 ACCOUNT_LOCKED` con
+  `Retry-After` (segundos), **incluso con la clave correcta**, y aplica también a correos que no existen (no revela qué
+  cuentas existen). Un login correcto reinicia el contador. El estado vive en memoria: se reinicia con el servidor.
+  Configurable con `LOGIN_MAX_FAILED_ATTEMPTS` (5) y `LOGIN_LOCK_SECONDS` (300). El frontend debe mostrar el tiempo de espera.
+- **Contraseñas nuevas** (registro, `change-password`, `reset-password`, restablecimiento del admin): entre 8 y 128 caracteres y
+  `400 VALIDATION_ERROR` si es una clave común (`password`, `12345678`, `qwerty123`...), una palabra débil con adornos
+  (`Password2026!`, `Admin#2026`), de un solo carácter repetido, solo números o si contiene el correo del usuario. No se exige
+  mezclar mayúsculas, números y símbolos: una frase larga es válida. El login no aplica esta política (solo el largo).
+- **Vigencia del token:** 8 horas por defecto (`JWT_EXPIRES_IN_SECONDS`, antes 24 horas). Al vencer hay que iniciar sesión de nuevo.
+
 ## Límites de uso
 
 `/auth/login`, `/auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password` y

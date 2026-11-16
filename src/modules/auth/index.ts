@@ -6,6 +6,7 @@ import type { TokenRevocationStore } from './application/ports/token-revocation.
 import type { TokenService } from './application/ports/token-service.port.js';
 import { HmacJwtTokenService } from './infrastructure/crypto/hmac-jwt.token-service.js';
 import { InMemoryTokenRevocationStore } from './infrastructure/crypto/in-memory-token-revocation.store.js';
+import { InMemoryLoginAttemptStore, type LoginLockoutOptions } from './infrastructure/crypto/in-memory-login-attempt.store.js';
 import { deriveCodeKey } from './infrastructure/crypto/one-time-code.js';
 import { ScryptPasswordHasher } from './infrastructure/crypto/scrypt-password-hasher.js';
 import { ConsoleEmailSender } from './infrastructure/email/console-email-sender.js';
@@ -21,7 +22,13 @@ export interface AuthModuleDependencies {
   /** Por defecto true. false = modo demo: los clientes nacen verificados y no se envía correo. */
   readonly emailVerificationRequired?: boolean;
   readonly codeTtlSeconds?: number;
+  /** Bloqueo por cuenta tras fallos de login. Por defecto: 5 fallos en 15 min bloquean 5 min. */
+  readonly loginLockout?: LoginLockoutOptions;
 }
+
+const DEFAULT_LOGIN_LOCKOUT: LoginLockoutOptions = { maxFailures: 5, lockSeconds: 300 };
+// 8 horas: cubre un turno de reparto y reduce a un tercio la ventana de un token robado (antes 24 h).
+export const DEFAULT_JWT_EXPIRES_IN_SECONDS = 28_800;
 
 export interface AuthModule {
   readonly router: Router;
@@ -35,7 +42,7 @@ export function createAuthModule(dependencies: AuthModuleDependencies): AuthModu
   const hasher = new ScryptPasswordHasher();
   const tokenService = new HmacJwtTokenService(
     dependencies.jwtSecret,
-    dependencies.jwtExpiresInSeconds ?? 86_400,
+    dependencies.jwtExpiresInSeconds ?? DEFAULT_JWT_EXPIRES_IN_SECONDS,
   );
   const revocationStore = dependencies.revocationStore ?? new InMemoryTokenRevocationStore();
   const useCases = createAuthUseCases(
@@ -45,6 +52,7 @@ export function createAuthModule(dependencies: AuthModuleDependencies): AuthModu
     revocationStore,
     {
       emailSender: dependencies.emailSender ?? new ConsoleEmailSender(),
+      loginAttempts: new InMemoryLoginAttemptStore(dependencies.loginLockout ?? DEFAULT_LOGIN_LOCKOUT),
       codeKey: deriveCodeKey(dependencies.jwtSecret),
       emailVerificationRequired: dependencies.emailVerificationRequired ?? true,
       ...(dependencies.codeTtlSeconds !== undefined ? { codeTtlSeconds: dependencies.codeTtlSeconds } : {}),

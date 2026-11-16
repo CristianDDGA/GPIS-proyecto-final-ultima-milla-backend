@@ -158,7 +158,7 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
     const demoApp = createPersistedApp(database!, WEB_ORIGIN, { jwtSecret: TEST_JWT_SECRET, emailVerificationRequired: false });
     const reg = await request(demoApp)
       .post('/auth/register')
-      .send({ email: `logout-pg-${randomUUID()}@test.com`, password: 'Password123' });
+      .send({ email: `logout-pg-${randomUUID()}@test.com`, password: 'ClaveSegura2026' });
     expect(reg.status).toBe(201);
     const userToken = reg.body.token as string;
     expect((await request(app).get('/zones').set('Authorization', `Bearer ${userToken}`)).status).toBe(200);

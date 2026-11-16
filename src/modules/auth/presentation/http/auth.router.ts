@@ -14,6 +14,7 @@ const STATUS_BY_CODE: Record<AuthErrorCode, number> = {
   INVALID_CODE: 400,
   CODE_EXPIRED: 400,
   CODE_LOCKED: 429,
+  ACCOUNT_LOCKED: 429,
   USER_NOT_FOUND: 404,
   EMAIL_ALREADY_EXISTS: 409,
   PERSISTENCE_UNAVAILABLE: 503,
@@ -52,6 +53,7 @@ async function extractBearerToken(
 export function sendAuthError(error: unknown, response: Response): void {
   const failure = error instanceof AuthError ? error : new AuthError('PERSISTENCE_UNAVAILABLE');
   const status = STATUS_BY_CODE[failure.code];
+  if (failure.retryAfterSeconds !== undefined) response.setHeader('Retry-After', String(failure.retryAfterSeconds));
   response.status(status).json({
     code: failure.code,
     message: failure.message,

@@ -22,6 +22,7 @@ const app = database
       jwtExpiresInSeconds: config.jwtExpiresInSeconds,
       authRateLimit: config.authRateLimit,
       emailVerificationRequired: config.emailVerificationRequired,
+      loginLockout: config.loginLockout,
       emailSender: config.mail.transport === 'smtp' ? new SmtpEmailSender(config.mail.smtp) : new ConsoleEmailSender(),
       ...(config.trustProxyHops !== undefined ? { trustProxyHops: config.trustProxyHops } : {}),
     })

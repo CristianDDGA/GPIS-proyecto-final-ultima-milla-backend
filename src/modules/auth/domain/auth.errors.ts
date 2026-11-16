@@ -8,6 +8,7 @@ export type AuthErrorCode =
   | 'INVALID_CODE'
   | 'CODE_EXPIRED'
   | 'CODE_LOCKED'
+  | 'ACCOUNT_LOCKED'
   | 'USER_NOT_FOUND'
   | 'USER_INACTIVE'
   | 'PERSISTENCE_UNAVAILABLE';
@@ -22,6 +23,7 @@ const DEFAULT_MESSAGES: Record<AuthErrorCode, string> = {
   INVALID_CODE: 'El código no es válido.',
   CODE_EXPIRED: 'El código ha caducado. Solicita uno nuevo.',
   CODE_LOCKED: 'Demasiados intentos fallidos. Solicita un código nuevo.',
+  ACCOUNT_LOCKED: 'Demasiados intentos fallidos. Intenta de nuevo más tarde.',
   USER_NOT_FOUND: 'No existe el usuario indicado.',
   USER_INACTIVE: 'La cuenta de usuario está desactivada.',
   PERSISTENCE_UNAVAILABLE: 'El servicio de autenticación no está disponible temporalmente.',
@@ -29,10 +31,13 @@ const DEFAULT_MESSAGES: Record<AuthErrorCode, string> = {
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode;
+  /** Segundos que el cliente debe esperar (se envía como cabecera Retry-After). */
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(code: AuthErrorCode, message?: string) {
+  constructor(code: AuthErrorCode, message?: string, retryAfterSeconds?: number) {
     super(message ?? DEFAULT_MESSAGES[code]);
     this.name = 'AuthError';
     this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
