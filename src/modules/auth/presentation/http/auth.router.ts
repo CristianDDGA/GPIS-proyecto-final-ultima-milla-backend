@@ -16,6 +16,9 @@ const STATUS_BY_CODE: Record<AuthErrorCode, number> = {
   CODE_LOCKED: 429,
   ACCOUNT_LOCKED: 429,
   USER_NOT_FOUND: 404,
+  LAST_ADMIN: 409,
+  USER_HAS_ACTIVE_ROUTE: 409,
+  CANNOT_DEACTIVATE_SELF: 409,
   EMAIL_ALREADY_EXISTS: 409,
   PERSISTENCE_UNAVAILABLE: 503,
 };
@@ -124,7 +127,7 @@ export function createAuthRouter(
       const claims = await extractBearerToken(request, tokens, revocationStore);
       const input = bodyObject(request);
       const user = await useCases.registerByAdmin(
-        { role: claims.role },
+        { role: claims.role, id: claims.sub },
         {
           email: input['email'],
           password: input['password'],
@@ -191,13 +194,50 @@ export function createAuthRouter(
     }),
   );
 
+  // Gestión de usuarios (solo administrador): listar con filtros, consultar y activar o desactivar.
+  router.get(
+    '/users',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      const page = await useCases.listUsers({ role: claims.role, id: claims.sub }, {
+        role: request.query['role'],
+        isActive: request.query['isActive'],
+        q: request.query['q'],
+        limit: request.query['limit'],
+        offset: request.query['offset'],
+      });
+      response.status(200).json(page);
+    }),
+  );
+
+  router.get(
+    '/users/:id',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      const user = await useCases.getUser({ role: claims.role, id: claims.sub }, request.params['id']);
+      response.status(200).json({ user });
+    }),
+  );
+
+  router.patch(
+    '/users/:id',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      const input = bodyObject(request);
+      const user = await useCases.setUserActive({ role: claims.role, id: claims.sub }, request.params['id'], {
+        isActive: input['isActive'],
+      });
+      response.status(200).json({ user });
+    }),
+  );
+
   // Un administrador restablece la clave de otro usuario (p. ej. un conductor con correo ficticio).
   router.post(
     '/users/:id/reset-password',
     route(async (request, response) => {
       const claims = await extractBearerToken(request, tokens, revocationStore);
       const input = bodyObject(request);
-      await useCases.adminResetPassword({ role: claims.role }, request.params['id'], {
+      await useCases.adminResetPassword({ role: claims.role, id: claims.sub }, request.params['id'], {
         newPassword: input['newPassword'],
       });
       response.status(200).json({ ok: true });

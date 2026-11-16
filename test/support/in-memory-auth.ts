@@ -5,9 +5,11 @@ import type {
   CodeIssueResult,
   CodePurpose,
   RegisterUserInput,
+  SetActiveResult,
+  UserListFilter,
 } from '../../src/modules/auth/application/ports/auth.repository.port.js';
 import type { EmailMessage, EmailSender } from '../../src/modules/auth/application/ports/email-sender.port.js';
-import { toPublicRole, type AuthUser, type AuthUserRecord } from '../../src/modules/auth/domain/auth-user.entity.js';
+import { toPublicRole, type AdminUserView, type AuthUser, type AuthUserRecord } from '../../src/modules/auth/domain/auth-user.entity.js';
 import { AuthError } from '../../src/modules/auth/domain/auth.errors.js';
 
 interface StoredCode {
@@ -21,6 +23,8 @@ interface StoredCode {
 export class InMemoryAuthRepository implements AuthRepository {
   private readonly usersById = new Map<string, AuthUserRecord>();
   private readonly codes = new Map<string, StoredCode>();
+  private readonly createdAt = new Map<string, number>();
+  private readonly usersWithActiveRoute = new Set<string>();
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -63,6 +67,7 @@ export class InMemoryAuthRepository implements AuthRepository {
       emailVerifiedVia: verifiedVia,
     };
     this.usersById.set(id, record);
+    this.createdAt.set(id, this.now());
     return (await this.findById(id))!;
   }
 
@@ -120,10 +125,50 @@ export class InMemoryAuthRepository implements AuthRepository {
     return true;
   }
 
+  async listUsers(filter: UserListFilter): Promise<{ items: readonly AdminUserView[]; total: number }> {
+    const needle = filter.q?.toLowerCase();
+    const matching = [...this.usersById.values()]
+      .filter((user) => (filter.role === undefined || user.role === filter.role)
+        && (filter.isActive === undefined || user.isActive === filter.isActive)
+        && (needle === undefined || `${user.email} ${user.displayName ?? ''}`.toLowerCase().includes(needle)))
+      .sort((a, b) => (this.createdAt.get(b.id) ?? 0) - (this.createdAt.get(a.id) ?? 0) || a.id.localeCompare(b.id))
+      .map((user) => this.toView(user));
+    return { items: matching.slice(filter.offset, filter.offset + filter.limit), total: matching.length };
+  }
+
+  async findUserView(id: string): Promise<AdminUserView | null> {
+    const record = this.usersById.get(id);
+    return record ? this.toView(record) : null;
+  }
+
+  async setUserActive(userId: string, active: boolean): Promise<SetActiveResult> {
+    const record = this.usersById.get(userId);
+    if (!record) return 'NOT_FOUND';
+    if (record.isActive === active) return 'UNCHANGED';
+    if (!active) {
+      if (record.role === 'personal' && ![...this.usersById.values()].some((user) => user.id !== userId && user.role === 'personal' && user.isActive)) {
+        return 'LAST_ADMIN';
+      }
+      if (this.usersWithActiveRoute.has(userId)) return 'HAS_ACTIVE_ROUTE';
+    }
+    this.usersById.set(userId, { ...record, isActive: active });
+    return 'OK';
+  }
+
+  private toView(record: AuthUserRecord): AdminUserView {
+    const { passwordHash: _passwordHash, ...view } = record;
+    return { ...view, createdAt: new Date(this.createdAt.get(record.id) ?? 0).toISOString() };
+  }
+
   /** Utilidad de pruebas: desactiva una cuenta. */
   deactivate(userId: string): void {
     const record = this.usersById.get(userId);
     if (record) this.usersById.set(userId, { ...record, isActive: false });
+  }
+
+  /** Utilidad de pruebas: simula que el repartidor tiene una ruta asignada o en curso. */
+  markActiveRoute(userId: string, hasRoute = true): void {
+    if (hasRoute) this.usersWithActiveRoute.add(userId); else this.usersWithActiveRoute.delete(userId);
   }
 }
 

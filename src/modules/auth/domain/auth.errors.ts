@@ -11,6 +11,9 @@ export type AuthErrorCode =
   | 'ACCOUNT_LOCKED'
   | 'USER_NOT_FOUND'
   | 'USER_INACTIVE'
+  | 'LAST_ADMIN'
+  | 'USER_HAS_ACTIVE_ROUTE'
+  | 'CANNOT_DEACTIVATE_SELF'
   | 'PERSISTENCE_UNAVAILABLE';
 
 const DEFAULT_MESSAGES: Record<AuthErrorCode, string> = {
@@ -26,6 +29,9 @@ const DEFAULT_MESSAGES: Record<AuthErrorCode, string> = {
   ACCOUNT_LOCKED: 'Demasiados intentos fallidos. Intenta de nuevo más tarde.',
   USER_NOT_FOUND: 'No existe el usuario indicado.',
   USER_INACTIVE: 'La cuenta de usuario está desactivada.',
+  LAST_ADMIN: 'No se puede desactivar al último administrador activo.',
+  USER_HAS_ACTIVE_ROUTE: 'El repartidor tiene una ruta asignada o en curso. Reasigna o cierra la ruta antes de desactivarlo.',
+  CANNOT_DEACTIVATE_SELF: 'No puedes desactivar tu propia cuenta.',
   PERSISTENCE_UNAVAILABLE: 'El servicio de autenticación no está disponible temporalmente.',
 };
 

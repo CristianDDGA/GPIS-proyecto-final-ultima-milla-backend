@@ -2,7 +2,7 @@ import request from 'supertest';
 import { createPersistedApp } from '../../src/bootstrap/create-persisted-app.js';
 import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypto/hmac-jwt.token-service.js';
 import { realDatabase } from './database.fixture.js';
-import { createFixtureActor, deliveryDatabase, resetTestData, runAdminSql } from './sprint03/deliveries.fixture.js';
+import { createFixtureActor, deliveryDatabase, prepareAssignedRoute, resetTestData, runAdminSql } from './sprint03/deliveries.fixture.js';
 import { CapturingEmailSender } from '../support/in-memory-auth.js';
 
 const SECRET = 'integration-test-jwt-secret-1234';
@@ -166,5 +166,105 @@ describeReal('Cuentas · verificación, recuperación y sesiones con PostgreSQL 
     await expect(database.$queryRaw`SELECT * FROM logistica.email_codes`).rejects.toThrow();
     await expect(database.$queryRaw`SELECT logistica.consume_email_code(gen_random_uuid(), 'verify_email'::text, ${'0'.repeat(64)}::text)`).rejects.toThrow();
     await expect(database.$queryRaw`UPDATE logistica.app_users SET email_verified_at = now()`).rejects.toThrow();
+  });
+});
+
+describeReal('Gestión de usuarios · PostgreSQL real (migración 008)', () => {
+  let database: ReturnType<typeof deliveryDatabase>;
+  let emails: CapturingEmailSender;
+  let app: ReturnType<typeof createPersistedApp>;
+  const tokens = new HmacJwtTokenService(SECRET);
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  beforeAll(() => { database = deliveryDatabase(); });
+  beforeEach(() => {
+    resetTestData();
+    emails = new CapturingEmailSender();
+    app = createPersistedApp(database, ORIGIN, { jwtSecret: SECRET, emailSender: emails });
+  });
+  afterAll(async () => { await database?.$disconnect(); });
+
+  function adminAuth() {
+    const actor = createFixtureActor('personal');
+    return { id: actor.actorId, auth: { Authorization: `Bearer ${tokens.sign({ sub: actor.actorId, role: 'personal', authSubject: actor.authSubject, courierId: null })}` } };
+  }
+
+  async function createDriver(auth: { Authorization: string }, email: string) {
+    const response = await request(app).post('/auth/users').set(auth)
+      .send({ email, password: 'Faro-Verde-Mar-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
+    expect(response.status).toBe(201);
+    return response.body.user as { id: string };
+  }
+
+  it('lista con filtros, total y paginación desde la base, y no expone el hash de la clave', async () => {
+    const boss = adminAuth();
+    await createDriver(boss.auth, 'carlos@correo.ficticio.com');
+    await createDriver(boss.auth, 'maria@correo.ficticio.com');
+    const all = await request(app).get('/auth/users').set(boss.auth);
+    expect(all.status).toBe(200);
+    expect(all.body.total).toBe(3);
+    expect(JSON.stringify(all.body)).not.toMatch(/password|hash/i);
+    const drivers = await request(app).get('/auth/users?role=repartidor&limit=1&offset=1').set(boss.auth);
+    expect(drivers.body).toEqual(expect.objectContaining({ total: 2, limit: 1, offset: 1 }));
+    expect(drivers.body.items).toHaveLength(1);
+    expect((await request(app).get('/auth/users?q=MARIA').set(boss.auth)).body.total).toBe(1);
+    expect((await request(app).get('/auth/users?q=%25').set(boss.auth)).body.total).toBe(0);
+    expect((await request(app).get('/auth/users?q=\'%3B%20DROP%20TABLE%20logistica.app_users%3B--').set(boss.auth)).body.total).toBe(0);
+    expect((await request(app).get('/auth/users')).status).toBe(401);
+  });
+
+  it('desactivar cierra las sesiones (también en otra instancia), bloquea el login y reactivar lo devuelve', async () => {
+    const boss = adminAuth();
+    const driver = await createDriver(boss.auth, 'carlos@correo.ficticio.com');
+    const session = await request(app).post('/auth/login').send({ email: 'carlos@correo.ficticio.com', password: 'Faro-Verde-Mar-2026' });
+    await sleep(1100);
+
+    const off = await request(app).patch(`/auth/users/${driver.id}`).set(boss.auth).send({ isActive: false });
+    expect(off.status).toBe(200);
+    expect(off.body.user.isActive).toBe(false);
+    expect(runAdminSql(`SELECT is_active, tokens_valid_after IS NOT NULL FROM logistica.app_users WHERE id='${driver.id}';`)).toBe('f|t');
+
+    const otherInstance = createPersistedApp(database, ORIGIN, { jwtSecret: SECRET, emailSender: emails });
+    expect((await request(otherInstance).get('/auth/me').set('Authorization', `Bearer ${session.body.token}`)).status).toBe(401);
+    const blocked = await request(app).post('/auth/login').send({ email: 'carlos@correo.ficticio.com', password: 'Faro-Verde-Mar-2026' });
+    expect(blocked.body.code).toBe('USER_INACTIVE');
+
+    await request(app).patch(`/auth/users/${driver.id}`).set(boss.auth).send({ isActive: true });
+    expect((await request(app).post('/auth/login').send({ email: 'carlos@correo.ficticio.com', password: 'Faro-Verde-Mar-2026' })).status).toBe(200);
+  });
+
+  it('el último administrador activo no se puede desactivar y no se puede desactivar a uno mismo', async () => {
+    const boss = adminAuth();
+    const only = await request(app).patch(`/auth/users/${boss.id}`).set(boss.auth).send({ isActive: false });
+    expect(only.status).toBe(409);
+    expect(only.body.code).toBe('CANNOT_DEACTIVATE_SELF');
+
+    // Una cuenta de administrador desactivada por otra vía no deja al sistema sin administrador activo.
+    const other = adminAuth();
+    const result = runAdminSql(`SELECT logistica.set_app_user_active('${other.id}'::uuid, false);`);
+    expect(result).toBe('OK');
+    const last = runAdminSql(`SELECT logistica.set_app_user_active('${boss.id}'::uuid, false);`);
+    expect(last).toBe('LAST_ADMIN');
+    expect(runAdminSql(`SELECT is_active FROM logistica.app_users WHERE id='${boss.id}';`)).toBe('t');
+  });
+
+  it('un repartidor con una ruta asignada no se puede desactivar (409 USER_HAS_ACTIVE_ROUTE)', async () => {
+    const boss = adminAuth();
+    const driverUser = createFixtureActor('repartidor');
+    const route = await prepareAssignedRoute(database, { courierUserId: driverUser.actorId });
+    expect(route.routeId).toBeTruthy();
+    const response = await request(app).patch(`/auth/users/${driverUser.actorId}`).set(boss.auth).send({ isActive: false });
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('USER_HAS_ACTIVE_ROUTE');
+    expect(runAdminSql(`SELECT is_active FROM logistica.app_users WHERE id='${driverUser.actorId}';`)).toBe('t');
+  });
+
+  it('el rol de la aplicación no puede cambiar is_active por su cuenta, solo mediante la función', async () => {
+    const boss = adminAuth();
+    const driver = await createDriver(boss.auth, 'carlos@correo.ficticio.com');
+    await expect(database.$queryRaw`UPDATE logistica.app_users SET is_active = false WHERE id = ${driver.id}::uuid`).rejects.toThrow();
+    const rows = await database.$queryRaw<Array<{ result: string }>>`SELECT logistica.set_app_user_active(${driver.id}::uuid, true) AS result`;
+    expect(rows[0]?.result).toBe('UNCHANGED');
+    expect(emails.sent).toHaveLength(0);
   });
 });

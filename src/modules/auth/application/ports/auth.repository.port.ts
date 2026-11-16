@@ -1,4 +1,4 @@
-import type { AppRole, AuthUser, AuthUserRecord } from '../../domain/auth-user.entity.js';
+import type { AdminUserView, AppRole, AuthUser, AuthUserRecord } from '../../domain/auth-user.entity.js';
 
 /**
  * pending: el correo debe verificarse con un código (registro propio de un cliente).
@@ -18,6 +18,16 @@ export interface RegisterUserInput {
 export type CodePurpose = 'verify_email' | 'reset_password';
 export type CodeCheckResult = 'OK' | 'INVALID' | 'EXPIRED' | 'LOCKED';
 export type CodeIssueResult = 'OK' | 'COOLDOWN';
+export type SetActiveResult = 'OK' | 'UNCHANGED' | 'NOT_FOUND' | 'LAST_ADMIN' | 'HAS_ACTIVE_ROUTE';
+
+export interface UserListFilter {
+  readonly role?: AppRole;
+  readonly isActive?: boolean;
+  /** Texto contenido en el correo o el nombre (sin distinguir mayúsculas). */
+  readonly q?: string;
+  readonly limit: number;
+  readonly offset: number;
+}
 
 export interface AuthRepository {
   findByEmail(email: string): Promise<AuthUserRecord | null>;
@@ -33,4 +43,9 @@ export interface AuthRepository {
   resetPasswordWithCode(userId: string, codeHash: string, newPasswordHash: string): Promise<CodeCheckResult>;
   /** Cambia la clave y cierra las sesiones anteriores. false si el usuario no existe o está inactivo. */
   setPassword(userId: string, newPasswordHash: string): Promise<boolean>;
+  /** Gestión de usuarios (administrador). */
+  listUsers(filter: UserListFilter): Promise<{ readonly items: readonly AdminUserView[]; readonly total: number }>;
+  findUserView(id: string): Promise<AdminUserView | null>;
+  /** Activa o desactiva una cuenta. Desactivar cierra sus sesiones; no permite dejar al sistema sin administrador. */
+  setUserActive(userId: string, active: boolean): Promise<SetActiveResult>;
 }
