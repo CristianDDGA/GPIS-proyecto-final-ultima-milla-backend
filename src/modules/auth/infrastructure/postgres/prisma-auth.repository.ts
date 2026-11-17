@@ -1,4 +1,5 @@
 import type { PrismaDatabaseClient } from '../../../../infrastructure/postgres/prisma-client.port.js';
+import { getSqlState } from '../../../../shared/sql-state.js';
 import { AuthError } from '../../domain/auth.errors.js';
 import {
   toPublicRole,
@@ -51,14 +52,6 @@ function mapRecord(row: UserRow): AuthUserRecord {
     passwordHash: row.password_hash,
     emailVerifiedVia: row.email_verified_via as EmailVerifiedVia | null,
   };
-}
-
-function getSqlState(error: unknown): string | undefined {
-  if (error === null || typeof error !== 'object') return undefined;
-  const candidate = error as { code?: unknown; meta?: { code?: unknown } };
-  if (typeof candidate.meta?.code === 'string') return candidate.meta.code;
-  if (typeof candidate.code === 'string') return candidate.code;
-  return undefined;
 }
 
 interface ListRow {

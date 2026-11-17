@@ -20,6 +20,7 @@ import type {
   ImageType,
   VehicleType,
 } from '../../domain/application.js';
+import { getSqlState } from '../../../../shared/sql-state.js';
 import { ApplicationError } from '../../domain/application.errors.js';
 
 interface ApplicationRow {
@@ -57,14 +58,6 @@ const ATTACH_RESULTS = new Set(['OK', 'NO_DRAFT']);
 const SUBMIT_RESULTS = new Set(['OK', 'NO_DRAFT', 'MISSING_FILES', 'LICENSE_EXPIRED', 'UNDERAGE', 'DUPLICATE_NATIONAL_ID']);
 const CANCEL_RESULTS = new Set(['OK', 'NOT_FOUND']);
 const REVIEW_RESULTS = new Set(['OK', 'NOT_FOUND', 'NOT_PENDING', 'NOT_CLIENT', 'FORBIDDEN']);
-
-function sqlState(error: unknown): string | undefined {
-  if (error === null || typeof error !== 'object') return undefined;
-  const candidate = error as { code?: unknown; meta?: { code?: unknown } };
-  if (typeof candidate.meta?.code === 'string') return candidate.meta.code;
-  if (typeof candidate.code === 'string') return candidate.code;
-  return undefined;
-}
 
 function toResult<T extends string>(value: string | undefined, allowed: Set<string>): T {
   if (value === undefined || !allowed.has(value)) throw new ApplicationError('PERSISTENCE_UNAVAILABLE');
@@ -130,7 +123,7 @@ export class PrismaApplicationRepository implements ApplicationRepository {
       return toResult<SaveDraftResult>(rows[0]?.result, SAVE_RESULTS);
     } catch (error: unknown) {
       if (error instanceof ApplicationError) throw error;
-      if (sqlState(error) === '23505') return 'DUPLICATE_NATIONAL_ID';
+      if (getSqlState(error) === '23505') return 'DUPLICATE_NATIONAL_ID';
       throw new ApplicationError('PERSISTENCE_UNAVAILABLE');
     }
   }
@@ -157,7 +150,7 @@ export class PrismaApplicationRepository implements ApplicationRepository {
       return toResult<SubmitResult>(rows[0]?.result, SUBMIT_RESULTS);
     } catch (error: unknown) {
       if (error instanceof ApplicationError) throw error;
-      if (sqlState(error) === '23505') return 'DUPLICATE_NATIONAL_ID';
+      if (getSqlState(error) === '23505') return 'DUPLICATE_NATIONAL_ID';
       throw new ApplicationError('PERSISTENCE_UNAVAILABLE');
     }
   }
