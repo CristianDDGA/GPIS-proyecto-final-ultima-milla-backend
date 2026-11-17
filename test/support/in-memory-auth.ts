@@ -160,6 +160,15 @@ export class InMemoryAuthRepository implements AuthRepository {
     return { ...view, createdAt: new Date(this.createdAt.get(record.id) ?? 0).toISOString() };
   }
 
+  /** Réplica de review_courier_application (aprobar): el cliente pasa a repartidor y recibe su ficha. */
+  promoteToCourier(userId: string, _displayName: string): string {
+    const record = this.usersById.get(userId);
+    if (!record) throw new Error('Usuario inexistente');
+    const courierId = randomUUID();
+    this.usersById.set(userId, { ...record, role: 'repartidor', publicRole: toPublicRole('repartidor'), courierId });
+    return courierId;
+  }
+
   /** Utilidad de pruebas: desactiva una cuenta. */
   deactivate(userId: string): void {
     const record = this.usersById.get(userId);

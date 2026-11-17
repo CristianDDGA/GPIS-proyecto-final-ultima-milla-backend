@@ -11,3 +11,5 @@ coverage/
 reports/
 .scannerwork/
 .sonar/
+
+/storage/

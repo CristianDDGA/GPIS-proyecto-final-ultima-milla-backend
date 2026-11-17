@@ -1,6 +1,6 @@
 {
-    "source":  "db-proyecto auth + revocation + email verification + user activation package (008_user_activation.sql)",
-    "sha256":  "75b6876d0dde06dd10d2601bed6695afea8056fc78e0810479c276c1612856b8",
+    "source":  "db-proyecto auth + revocation + email verification + user activation + courier applications package (009_courier_applications.sql)",
+    "sha256":  "0d9e6881c2b7d7c32dbbdc208ca8f28e6479021dd430b2480887038f6e0556fd",
     "files":  {
                   "compose.test.yaml":  "2e0e518c3387b9ad8ebb54fc7514d2962aafec7d1421555d8e39ac0372530145",
                   "database/init/00-bootstrap.sh":  "94d55f9bc9694ab3b2dee113e9b8393b9a81b28129d18cd49c875499d9173cf5",
@@ -12,6 +12,7 @@
                   "database/migrations/006_auth_revocation.sql":  "5591be851c5d713b7243303c296ea317ba64f8dc3ba828c6316f362c8e78c463",
                   "database/migrations/007_email_verification.sql":  "27065b5574dd972f4060a90d8439fa83354765142b114ea0552f7ae84fd791dc",
                   "database/migrations/008_user_activation.sql":  "ccebe9878822e725470520eb985cc7d0d5b6aa0546c550994251f2895be1f525",
+                  "database/migrations/009_courier_applications.sql":  "1c543fca25f1c7981b5ae7472826c1ddd5e16bc0af4ce5fe4cc67ac6531eb389",
                   "database/scripts/migrate.sh":  "75f606a3b834727c94f183895a58bd04766f2becd24862dadbe53c68cdda515c",
                   "database/seeds/demo.sql":  "1dafe59880ac8048ff8d6efef562ce1c0f1726766fbfa058f9231444fd6893b7",
                   "database/tests/integration.sql":  "51d4f4cfa28738916ccab505d3131d38c350731f10d4115c004bff660c1c0016",

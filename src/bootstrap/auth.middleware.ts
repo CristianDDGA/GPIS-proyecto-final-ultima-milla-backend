@@ -40,8 +40,14 @@ interface RoutePolicy {
 
 const COURIER_AVAILABILITY_RE = /^\/couriers\/([^/]+)\/availability\/?$/;
 const COURIER_ROUTE_RE = /^\/couriers\/([^/]+)\/route\/?$/;
+const COURIER_APPLICATION_SELF_RE = /^\/courier-applications\/me(?:\/|$)/;
 
 function resolvePolicy(method: string, path: string): RoutePolicy | null {
+  // Solicitudes para ser conductor: /me es del cliente (dueño); el resto es la revisión del administrador.
+  if (path === '/courier-applications' || path.startsWith('/courier-applications/')) {
+    return COURIER_APPLICATION_SELF_RE.test(path) ? { roles: ['cliente'] } : { roles: ['personal'] };
+  }
+
   if (path === '/zones' || path.startsWith('/zones/')) {
     if (method === 'GET') return { roles: ['personal', 'repartidor', 'cliente'] };
     if (method === 'POST') return { roles: ['personal'] };

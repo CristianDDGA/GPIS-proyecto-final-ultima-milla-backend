@@ -11,7 +11,11 @@ export type SecurityEventType =
   | 'admin_password_reset'
   | 'user_created_by_admin'
   | 'user_deactivated'
-  | 'user_activated';
+  | 'user_activated'
+  | 'courier_application_submitted'
+  | 'courier_application_cancelled'
+  | 'courier_application_approved'
+  | 'courier_application_rejected';
 
 export interface SecurityEvent {
   readonly type: SecurityEventType;

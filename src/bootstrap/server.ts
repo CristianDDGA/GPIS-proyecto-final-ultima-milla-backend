@@ -24,6 +24,7 @@ const app = database
       authRateLimit: config.authRateLimit,
       emailVerificationRequired: config.emailVerificationRequired,
       loginLockout: config.loginLockout,
+      uploadsDir: config.courierUploadsDir,
       securityLog: createJsonSecurityLog(),
       emailSender: config.mail.transport === 'smtp' ? new SmtpEmailSender(config.mail.smtp) : new ConsoleEmailSender(),
       ...(config.trustProxyHops !== undefined ? { trustProxyHops: config.trustProxyHops } : {}),

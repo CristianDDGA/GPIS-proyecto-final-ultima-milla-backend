@@ -20,6 +20,10 @@ import { PrismaAuthRepository } from '../modules/auth/infrastructure/postgres/pr
 import type { EmailSender } from '../modules/auth/application/ports/email-sender.port.js';
 import type { SecurityLog } from '../modules/auth/application/ports/security-log.port.js';
 import { PrismaTokenRevocationStore } from '../modules/auth/infrastructure/postgres/prisma-token-revocation.store.js';
+import { createCourierApplicationsModule } from '../modules/courier-applications/index.js';
+import { PrismaApplicationRepository } from '../modules/courier-applications/infrastructure/postgres/prisma-application.repository.js';
+import { DiskFileStorage } from '../modules/courier-applications/infrastructure/storage/disk-file-storage.js';
+import type { FileStorage } from '../modules/courier-applications/application/ports/file-storage.port.js';
 
 export interface PersistedAppOptions {
   readonly actorContext?: ActorContextPort;
@@ -34,6 +38,11 @@ export interface PersistedAppOptions {
   readonly loginLockout?: { readonly maxFailures: number; readonly lockSeconds: number };
   /** Registro de eventos de seguridad (una línea JSON por evento en server.ts). */
   readonly securityLog?: SecurityLog;
+  /** Almacén de las imágenes de las solicitudes de conductor. Por defecto, disco en `uploadsDir`. */
+  readonly fileStorage?: FileStorage;
+  readonly uploadsDir?: string;
+  /** Pedidos por viaje con los que nace un conductor aprobado. */
+  readonly courierDefaultCapacity?: number;
 }
 
 // Sin secreto de respaldo: un valor fijo en el código permitiría falsificar tokens de administrador.
@@ -77,6 +86,16 @@ export function createPersistedApp(
     ...(options?.emailVerificationRequired !== undefined ? { emailVerificationRequired: options.emailVerificationRequired } : {}),
   });
 
+  const courierApplications = createCourierApplicationsModule({
+    repository: new PrismaApplicationRepository(database),
+    storage:
+      options?.fileStorage ?? new DiskFileStorage(options?.uploadsDir ?? process.env['COURIER_UPLOADS_DIR'] ?? './storage/courier-applications'),
+    revocationStore: auth.revocationStore,
+    ...(options?.emailSender ? { emailSender: options.emailSender } : {}),
+    ...(options?.securityLog ? { securityLog: options.securityLog } : {}),
+    ...(options?.courierDefaultCapacity !== undefined ? { defaultCapacity: options.courierDefaultCapacity } : {}),
+  });
+
   return createApp({
     webOrigin,
     checkDatabase: () => database.$queryRaw`SELECT 1`,
@@ -89,6 +108,7 @@ export function createPersistedApp(
     orderZoneLookup: new PrismaOrderZoneLookup(database),
     routers: [
       { basePath: '/auth', router: auth.router },
+      { basePath: '/courier-applications', router: courierApplications.router },
       ...routes.routers,
       ...routeOperations.routers,
       { basePath: '/', router: couriers.router },
@@ -96,6 +116,7 @@ export function createPersistedApp(
     ],
     errorHandlers: [
       auth.errorHandler,
+      courierApplications.errorHandler,
       routes.errorHandler,
       routeOperations.errorHandler,
       couriers.errorHandler,
