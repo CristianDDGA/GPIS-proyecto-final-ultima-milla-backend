@@ -34,3 +34,5 @@ Los cambios de contrato se coordinan mediante PR relacionados. No se crea otro c
 Con `DATABASE_URL`, `server.ts` conecta el cliente Prisma único y `create-persisted-app.ts` monta todos los módulos en el mismo servidor (puerto `PORT`, 3000 por defecto): zonas, pedidos, rutas y repartidores. Los servidores autónomos de `src/bootstrap/sprint02/` (3011 y 3012) se conservan solo para reproducir las entregas del Sprint 02. La API usa `logistica_app` y las funciones originales. Sin URL solo habilita `/health`. `createApp` permite inyectar Orders y su consulta de zonas por separado.
 
 No se habilita almacenamiento en memoria como base de datos del servidor. `npm run test:integration:postgres` ejecuta los mismos casos HTTP con PostgreSQL real en un contenedor temporal; el modo en memoria se conserva como regresión.
+
+`COURIER_UPLOADS_DIR` (por defecto `./storage/courier-applications`): carpeta privada donde se guardan las imágenes de las solicitudes de conductor. Debe tener permisos de escritura y entrar en las copias de seguridad.

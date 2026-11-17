@@ -105,3 +105,7 @@ con `Retry-After`.
 `EMAIL_VERIFICATION_REQUIRED` (por defecto `true`), `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`,
 `MAIL_FROM`. Sin `SMTP_HOST`, los correos se escriben en la consola del servidor (solo desarrollo); en producción con la
 verificación activa, `SMTP_HOST` es obligatorio. Para pruebas de carga y ZAP usar `EMAIL_VERIFICATION_REQUIRED=false`.
+
+## Solicitud para ser conductor
+
+Un cliente puede pedir ser conductor y el administrador la aprueba: ver `courier-applications.md` (formulario, subida de la licencia y la foto, estados, qué pasa con la cuenta al aprobar). Variable `COURIER_UPLOADS_DIR`: carpeta privada de las imágenes.

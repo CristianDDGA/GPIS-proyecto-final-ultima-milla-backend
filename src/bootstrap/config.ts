@@ -9,6 +9,8 @@ export interface AppConfig {
   readonly jwtExpiresInSeconds: number;
   readonly authRateLimit: { readonly maxRequests: number; readonly windowMs: number };
   readonly trustProxyHops?: number;
+  /** Carpeta privada donde se guardan las imágenes de las solicitudes de conductor. */
+  readonly courierUploadsDir: string;
   readonly loginLockout: { readonly maxFailures: number; readonly lockSeconds: number };
   /** false = modo demo (sin verificación ni SMTP para clientes). */
   readonly emailVerificationRequired: boolean;
@@ -134,6 +136,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     emailVerificationRequired,
     mail,
     loginLockout: { maxFailures: loginMaxFailures, lockSeconds: loginLockSeconds },
+    courierUploadsDir: environment.COURIER_UPLOADS_DIR?.trim() || './storage/courier-applications',
     ...(trustProxyHops !== undefined ? { trustProxyHops } : {}),
     webOrigin,
     jwtSecret,
