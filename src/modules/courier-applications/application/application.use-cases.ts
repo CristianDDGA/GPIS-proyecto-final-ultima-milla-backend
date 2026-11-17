@@ -68,6 +68,8 @@ const MAX_CAPACITY = 200;
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const MAX_SEARCH_LENGTH = 100;
+// Lista blanca para el motivo de rechazo (se envía por correo y se muestra al solicitante).
+const REASON_RE = /^[\p{L}\p{M}0-9 .,;:()¿?¡!%/'’-]+$/u;
 
 function requireRole(actor: ApplicationActor, role: AppRole, message: string): void {
   if (actor.role !== role) throw new ApplicationError('FORBIDDEN', message);
@@ -264,6 +266,9 @@ export function createApplicationUseCases(
       const reason = normalizeText(input['reason']);
       if (reason.length < 5 || reason.length > 500) {
         throw new ApplicationError('VALIDATION_ERROR', 'El motivo debe tener entre 5 y 500 caracteres.');
+      }
+      if (!REASON_RE.test(reason)) {
+        throw new ApplicationError('VALIDATION_ERROR', 'El motivo solo admite letras, números, espacios y . , ; : ( ) ¿ ? ¡ ! % / -; no se permiten emojis ni símbolos.');
       }
       mapReview(await repository.review(applicationId, actor.id, { approve: false, reason }));
       const detail = await reviewable(applicationId);

@@ -15,7 +15,7 @@ const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('
 
 const VALID_FORM = {
   fullName: 'Carlos Andrade Mora',
-  nationalId: '1712345678',
+  nationalId: '1712345675',
   phone: '0991234567',
   birthDate: '1995-04-20',
   vehicleType: 'moto',
@@ -155,9 +155,9 @@ describeReal('Solicitud de conductor · PostgreSQL real (migración 009)', () =>
   it('lista con filtros, orden y búsqueda segura desde la base', async () => {
     const boss = adminAuth();
     const first = await submitted('uno@test.com');
-    await submitted('dos@test.com', { ...VALID_FORM, nationalId: '1798765432', fullName: 'María Torres Vega' });
+    await submitted('dos@test.com', { ...VALID_FORM, nationalId: '1723456784', fullName: 'María Torres Vega' });
     const draftOnly = await customer('tres@test.com');
-    await request(app).put('/courier-applications/me').set(draftOnly.auth).send({ ...VALID_FORM, nationalId: '1711111111' });
+    await request(app).put('/courier-applications/me').set(draftOnly.auth).send({ ...VALID_FORM, nationalId: '1711111110' });
     await request(app).post(`/courier-applications/${first.applicationId}/reject`).set(boss.auth).send({ reason: 'Documento ilegible.' });
 
     const all = await request(app).get('/courier-applications').set(boss.auth);
@@ -166,7 +166,7 @@ describeReal('Solicitud de conductor · PostgreSQL real (migración 009)', () =>
     expect(all.body.items.map((item: { status: string }) => item.status)).toEqual(['pendiente', 'rechazada']);
     expect((await request(app).get('/courier-applications?status=rechazada').set(boss.auth)).body.total).toBe(1);
     expect((await request(app).get('/courier-applications?q=TORRES').set(boss.auth)).body.total).toBe(1);
-    expect((await request(app).get('/courier-applications?q=1798765432').set(boss.auth)).body.total).toBe(1);
+    expect((await request(app).get('/courier-applications?q=1723456784').set(boss.auth)).body.total).toBe(1);
     expect((await request(app).get('/courier-applications?q=uno@test').set(boss.auth)).body.total).toBe(1);
     expect((await request(app).get('/courier-applications?q=%25').set(boss.auth)).body.total).toBe(0);
     expect((await request(app).get("/courier-applications?q='%3B%20DROP%20TABLE%20logistica.courier_applications%3B--").set(boss.auth)).body.total).toBe(0);

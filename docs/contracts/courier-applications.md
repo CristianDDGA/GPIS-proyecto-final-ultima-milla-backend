@@ -35,11 +35,11 @@ borrador ──submit──▶ pendiente ──approve──▶ aprobada   (la c
 | Campo | Regla |
 |---|---|
 | `fullName` | Nombres y apellidos (al menos dos palabras), solo letras, espacios, apóstrofo, guion y punto |
-| `nationalId` | Cédula: exactamente 10 dígitos |
-| `phone` | 7 a 15 dígitos, puede iniciar con `+` (se aceptan espacios y guiones, se normalizan) |
+| `nationalId` | Cédula ecuatoriana de 10 dígitos: provincia 01–24 o 30, tercer dígito menor que 6 y dígito verificador correcto. Valida que el número esté bien formado; que exista y sea de esa persona lo comprueba el administrador contra la foto de la licencia |
+| `phone` | 7 a 15 dígitos, puede iniciar con `+`; espacios y guiones solo entre dígitos (se normalizan) |
 | `birthDate` | `AAAA-MM-DD`, existir en el calendario y tener **18 años cumplidos** |
 | `vehicleType` | `moto`, `auto` o `camioneta` |
-| `licenseNumber` | 4 a 20 caracteres: letras, números y guion (se pasa a mayúsculas) |
+| `licenseNumber` | 4 a 20 caracteres: letras y números, con guiones solo entre grupos (se pasa a mayúsculas) |
 | `licenseCategory` | `A`, `A1`, `B`, `C`, `C1`, `D`, `D1`, `E`, `E1`, `F` o `G` |
 | `licenseExpiresOn` | `AAAA-MM-DD`, posterior a hoy (hora de Ecuador) |
 
@@ -67,7 +67,7 @@ await fetch(`${API}/courier-applications/me/files/license`, {
 ```json
 {
   "id": "uuid", "userId": "uuid", "status": "pendiente",
-  "fullName": "Carlos Andrade Mora", "nationalId": "1712345678", "phone": "0991234567",
+  "fullName": "Carlos Andrade Mora", "nationalId": "1712345675", "phone": "0991234567",
   "birthDate": "1995-04-20", "vehicleType": "moto",
   "licenseNumber": "EC-123456", "licenseCategory": "A", "licenseExpiresOn": "2030-01-31",
   "files": [
@@ -90,7 +90,7 @@ los `GET .../files/:kind`.
 | `GET /courier-applications/:id` | `200 { application }` con `applicantEmail` y `applicantName` |
 | `GET /courier-applications/:id/files/:kind` | La imagen (`license` o `photo`) |
 | `POST /courier-applications/:id/approve` | Aprueba. Cuerpo opcional `{ "capacity": 12 }` (pedidos por viaje, entero 1–200; por defecto 10) |
-| `POST /courier-applications/:id/reject` | Rechaza. Cuerpo `{ "reason": "..." }` obligatorio, 5 a 500 caracteres |
+| `POST /courier-applications/:id/reject` | Rechaza. Cuerpo `{ "reason": "..." }` obligatorio, 5 a 500 caracteres; solo letras, números, espacios y `. , ; : ( ) ¿ ? ¡ ! % / -` (sin emojis ni símbolos) |
 
 Cada elemento de `items` y el detalle son el mismo objeto `application` más `applicantEmail` y `applicantName`.
 

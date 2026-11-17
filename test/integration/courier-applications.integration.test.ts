@@ -17,7 +17,7 @@ const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('
 
 const VALID_FORM = {
   fullName: 'Carlos Andrade Mora',
-  nationalId: '1712345678',
+  nationalId: '1712345675',
   phone: '0991234567',
   birthDate: '1995-04-20',
   vehicleType: 'moto',
@@ -272,16 +272,16 @@ describe('Solicitud de conductor · revisión del administrador (en memoria)', (
     const ctx = build();
     const boss = await admin(ctx);
     const first = await submitted(ctx, 'uno@test.com');
-    await submitted(ctx, 'dos@test.com', { ...VALID_FORM, nationalId: '1798765432', fullName: 'María Torres Vega' });
+    await submitted(ctx, 'dos@test.com', { ...VALID_FORM, nationalId: '1723456784', fullName: 'María Torres Vega' });
     const draftOnly = await customer(ctx, 'tres@test.com');
-    await request(ctx.app).put('/courier-applications/me').set(draftOnly.auth).send({ ...VALID_FORM, nationalId: '1711111111' });
+    await request(ctx.app).put('/courier-applications/me').set(draftOnly.auth).send({ ...VALID_FORM, nationalId: '1711111110' });
 
     const all = await request(ctx.app).get('/courier-applications').set(boss.auth);
     expect(all.status).toBe(200);
     expect(all.body).toEqual(expect.objectContaining({ total: 2, limit: 25, offset: 0 }));
     expect(all.body.items[0]).toEqual(expect.objectContaining({ status: 'pendiente', applicantEmail: expect.any(String) }));
     expect((await request(ctx.app).get('/courier-applications?q=TORRES').set(boss.auth)).body.total).toBe(1);
-    expect((await request(ctx.app).get('/courier-applications?q=1798765432').set(boss.auth)).body.total).toBe(1);
+    expect((await request(ctx.app).get('/courier-applications?q=1723456784').set(boss.auth)).body.total).toBe(1);
     expect((await request(ctx.app).get('/courier-applications?status=aprobada').set(boss.auth)).body.total).toBe(0);
     expect((await request(ctx.app).get('/courier-applications?limit=1&offset=1').set(boss.auth)).body.items).toHaveLength(1);
     for (const bad of ['status=borrador', 'status=xx', 'limit=0', 'limit=101', 'offset=-1']) {
@@ -290,7 +290,7 @@ describe('Solicitud de conductor · revisión del administrador (en memoria)', (
 
     const detail = await request(ctx.app).get(`/courier-applications/${first.applicationId}`).set(boss.auth);
     expect(detail.status).toBe(200);
-    expect(detail.body.application).toEqual(expect.objectContaining({ id: first.applicationId, nationalId: '1712345678', applicantEmail: 'uno@test.com' }));
+    expect(detail.body.application).toEqual(expect.objectContaining({ id: first.applicationId, nationalId: '1712345675', applicantEmail: 'uno@test.com' }));
     expect(detail.body.application.files).toHaveLength(2);
     const license = await request(ctx.app).get(`/courier-applications/${first.applicationId}/files/license`).set(boss.auth);
     expect(license.status).toBe(200);
@@ -328,7 +328,7 @@ describe('Solicitud de conductor · revisión del administrador (en memoria)', (
 
     expect(ctx.emails.sent.some((message) => message.to === client.email && message.subject.includes('aprobada'))).toBe(true);
     expect(ctx.events).toContainEqual(expect.objectContaining({ type: 'courier_application_approved', userId: client.id, actorId: boss.id, email: 'c***@test.com' }));
-    expect(JSON.stringify(ctx.events)).not.toContain('1712345678');
+    expect(JSON.stringify(ctx.events)).not.toContain('1712345675');
 
     // Ya resuelta: no se aprueba ni se rechaza de nuevo.
     expect((await request(ctx.app).post(`/courier-applications/${applicationId}/approve`).set(boss.auth)).body.code).toBe('NOT_PENDING');
@@ -353,7 +353,7 @@ describe('Solicitud de conductor · revisión del administrador (en memoria)', (
     const boss = await admin(ctx);
     const { client, applicationId } = await submitted(ctx);
 
-    for (const body of [{}, { reason: '' }, { reason: 'No' }, { reason: 42 }, { reason: 'x'.repeat(501) }]) {
+    for (const body of [{}, { reason: '' }, { reason: 'No' }, { reason: 42 }, { reason: 'x'.repeat(501) }, { reason: 'Foto borrosa 😀' }, { reason: 'Foto <b>borrosa</b>' }, { reason: `Foto borrosa ${String.fromCharCode(0)}` }, { reason: 'Foto borrosa; DROP <TABLE>' }]) {
       expect((await request(ctx.app).post(`/courier-applications/${applicationId}/reject`).set(boss.auth).send(body)).status).toBe(400);
     }
     const rejected = await request(ctx.app).post(`/courier-applications/${applicationId}/reject`).set(boss.auth).send({ reason: '  La foto de la licencia no se lee.  ' });

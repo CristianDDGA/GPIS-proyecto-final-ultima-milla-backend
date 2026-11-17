@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import {
   detectImageType,
+  isValidEcuadorianNationalId,
   isValidIsoDate,
   subtractYears,
   todayInEcuador,
@@ -18,7 +19,7 @@ import { DiskFileStorage } from '../../src/modules/courier-applications/infrastr
 const TODAY = '2026-11-16';
 const FORM = {
   fullName: 'Carlos Andrade Mora',
-  nationalId: '1712345678',
+  nationalId: '1712345675',
   phone: '0991234567',
   birthDate: '1995-04-20',
   vehicleType: 'moto',
@@ -38,7 +39,7 @@ describe('solicitud de conductor · validación del formulario', () => {
   it('normaliza los datos válidos', () => {
     assert.deepEqual(validateApplicationData({ ...FORM, fullName: '  Carlos   Andrade  Mora ', phone: '+593 99-123-4567' }, TODAY), {
       fullName: 'Carlos Andrade Mora',
-      nationalId: '1712345678',
+      nationalId: '1712345675',
       phone: '+593991234567',
       birthDate: '1995-04-20',
       vehicleType: 'moto',
@@ -55,11 +56,40 @@ describe('solicitud de conductor · validación del formulario', () => {
     rejects({ fullName: 42 }, /nombre/i);
   });
 
-  it('exige cédula de 10 dígitos y teléfono válido', () => {
+  it('exige una cédula ecuatoriana válida: provincia, tercer dígito y dígito verificador', () => {
     rejects({ nationalId: '12345' }, /10 dígitos/);
     rejects({ nationalId: '17123456ab' }, /10 dígitos/);
+    rejects({ nationalId: '-171234567' }, /10 dígitos/);
+    rejects({ nationalId: '1712345.75' }, /10 dígitos/);
+    rejects({ nationalId: '1️⃣7123456' }, /10 dígitos/);
+    rejects({ nationalId: '1712345678' }, /ecuatoriana/); // dígito verificador incorrecto
+    rejects({ nationalId: '0000000000' }, /ecuatoriana/);
+    rejects({ nationalId: '2512345675' }, /ecuatoriana/); // provincia 25 no existe
+    rejects({ nationalId: '1762345675' }, /ecuatoriana/); // tercer dígito 6 (no es persona natural)
+    for (const valid of ['1712345675', '1723456784', '0912345675', '3012345678']) {
+      assert.equal(isValidEcuadorianNationalId(valid), true, valid);
+    }
+  });
+
+  it('isValidEcuadorianNationalId acepta cédulas reales de ejemplo y rechaza las alteradas', () => {
+    assert.equal(isValidEcuadorianNationalId('1710034065'), true);
+    assert.equal(isValidEcuadorianNationalId('1710034066'), false);
+    assert.equal(isValidEcuadorianNationalId('171003406'), false);
+    assert.equal(isValidEcuadorianNationalId('17100340650'), false);
+    assert.equal(isValidEcuadorianNationalId('abcdefghij'), false);
+  });
+
+  it('el teléfono solo admite dígitos, un + inicial y separadores entre dígitos', () => {
     rejects({ phone: '12345' }, /teléfono/i);
     rejects({ phone: '09912abc45' }, /teléfono/i);
+    rejects({ phone: '-0991234567' }, /teléfono/i);
+    rejects({ phone: '099--1234567' }, /teléfono/i);
+    rejects({ phone: '0991234567-' }, /teléfono/i);
+    rejects({ phone: '099.123.4567' }, /teléfono/i);
+    rejects({ phone: '099 123 4567 😀' }, /teléfono/i);
+    rejects({ phone: '+(593) 991234567' }, /teléfono/i);
+    rejects({ phone: '0'.repeat(16) }, /teléfono/i);
+    assert.equal(validateApplicationData({ ...FORM, phone: '099 123-4567' }, TODAY).phone, '0991234567');
   });
 
   it('exige mayoría de edad con el límite exacto de 18 años', () => {
@@ -75,6 +105,13 @@ describe('solicitud de conductor · validación del formulario', () => {
     rejects({ licenseCategory: 'Z' }, /categoría/);
     rejects({ licenseNumber: 'AB' }, /licencia/);
     rejects({ licenseNumber: 'AB<script>' }, /licencia/);
+    rejects({ licenseNumber: '-ABC123' }, /licencia/);
+    rejects({ licenseNumber: 'ABC--123' }, /licencia/);
+    rejects({ licenseNumber: 'ABC123-' }, /licencia/);
+    rejects({ licenseNumber: 'ABC 😀 123' }, /licencia/);
+    rejects({ licenseNumber: 'A'.repeat(21) }, /licencia/);
+    rejects({ licenseCategory: 'A1; DROP' }, /categoría/);
+    rejects({ licenseCategory: 7 }, /categoría/);
   });
 
   it('rechaza una licencia caducada o que caduca hoy', () => {

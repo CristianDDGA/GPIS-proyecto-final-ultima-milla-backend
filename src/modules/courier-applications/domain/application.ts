@@ -74,6 +74,26 @@ export function subtractYears(isoDate: string, years: number): string {
   return target.toISOString().slice(0, 10);
 }
 
+/**
+ * Cédula ecuatoriana: provincia 01–24 (o 30 = nacido en el exterior), tercer dígito menor que 6 (persona natural)
+ * y dígito verificador por módulo 10. Comprueba que el número está bien formado; que exista y sea de esa persona
+ * lo verifica el administrador contra la foto de la licencia.
+ */
+export function isValidEcuadorianNationalId(value: string): boolean {
+  if (!/^\d{10}$/.test(value)) return false;
+  const digits = [...value].map(Number) as number[];
+  const province = digits[0]! * 10 + digits[1]!;
+  if (!((province >= 1 && province <= 24) || province === 30)) return false;
+  if (digits[2]! >= 6) return false;
+  let sum = 0;
+  for (let index = 0; index < 9; index += 1) {
+    let product = digits[index]! * (index % 2 === 0 ? 2 : 1);
+    if (product > 9) product -= 9;
+    sum += product;
+  }
+  return (10 - (sum % 10)) % 10 === digits[9];
+}
+
 function fail(message: string): never {
   throw new ApplicationError('VALIDATION_ERROR', message);
 }
@@ -91,9 +111,14 @@ export function validateApplicationData(input: Record<string, unknown>, today: s
 
   const nationalId = text(input['nationalId'], 'La cédula').trim();
   if (!/^\d{10}$/.test(nationalId)) fail('La cédula debe tener 10 dígitos.');
+  if (!isValidEcuadorianNationalId(nationalId)) {
+    fail('La cédula no es una cédula ecuatoriana válida (revisa la provincia, el tercer dígito y el dígito verificador).');
+  }
 
-  const phone = text(input['phone'], 'El teléfono').replace(/[\s-]/g, '');
-  if (!/^\+?\d{7,15}$/.test(phone)) fail('El teléfono debe tener entre 7 y 15 dígitos (puede iniciar con +).');
+  // Los espacios y guiones solo se admiten entre dígitos: "-099..." o "099--..." no son teléfonos.
+  const rawPhone = text(input['phone'], 'El teléfono').trim();
+  if (!/^\+?\d(?:[ -]?\d){6,14}$/.test(rawPhone)) fail('El teléfono debe tener entre 7 y 15 dígitos (puede iniciar con +).');
+  const phone = rawPhone.replace(/[ -]/g, '');
 
   const birthDate = text(input['birthDate'], 'La fecha de nacimiento').trim();
   if (!isValidIsoDate(birthDate)) fail('La fecha de nacimiento debe tener el formato AAAA-MM-DD y existir en el calendario.');
@@ -104,7 +129,7 @@ export function validateApplicationData(input: Record<string, unknown>, today: s
   if (!VEHICLE_TYPES.includes(vehicleType as VehicleType)) fail(`El tipo de vehículo debe ser uno de: ${VEHICLE_TYPES.join(', ')}.`);
 
   const licenseNumber = normalizeText(text(input['licenseNumber'], 'El número de licencia')).toUpperCase();
-  if (!/^[A-Z0-9-]{4,20}$/.test(licenseNumber)) fail('El número de licencia solo admite letras, números y guion (4 a 20 caracteres).');
+  if (licenseNumber.length < 4 || licenseNumber.length > 20 || !/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/.test(licenseNumber)) fail('El número de licencia solo admite letras, números y guion (4 a 20 caracteres).');
 
   const licenseCategory = text(input['licenseCategory'], 'La categoría de la licencia').trim().toUpperCase();
   if (!(LICENSE_CATEGORIES as readonly string[]).includes(licenseCategory)) {
