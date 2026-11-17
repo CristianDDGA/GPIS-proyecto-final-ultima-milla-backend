@@ -36,6 +36,16 @@ describeReal('Cuentas · verificación, recuperación y sesiones con PostgreSQL 
   });
   afterAll(async () => { await database?.$disconnect(); });
 
+  it('registrar un correo que ya existe responde 409 (no 503), también con otra mayúscula, y no crea otra cuenta', async () => {
+    await register('ana@test.com');
+    for (const email of ['ana@test.com', 'ANA@test.com']) {
+      const duplicate = await request(app).post('/auth/register').send({ email, password: PASSWORD, displayName: 'Otra Ana' });
+      expect(duplicate.status).toBe(409);
+      expect(duplicate.body.code).toBe('EMAIL_ALREADY_EXISTS');
+    }
+    expect(runAdminSql("SELECT count(*) FROM logistica.app_users WHERE lower(email)='ana@test.com';")).toBe('1');
+  });
+
   it('registro → login bloqueado → código → verificado → login', async () => {
     const registered = await register('ana@test.com');
     expect(registered.body.token).toBeUndefined();
