@@ -18,16 +18,19 @@
 //   --dry-run        Muestra qué se aplicaría y no cambia nada.
 //   --create-roles   Crea los roles logistica_app, logistica_worker y logistica_readonly si no existen.
 //   --set-passwords  Con --create-roles, también cambia la contraseña de los roles que ya existen.
+//   --from-zip       Usa el paquete canónico del repositorio (.ci/database-package.zip, verificado contra su manifiesto)
+//                    aunque exista la carpeta del paquete. Es lo que se recomienda para producción.
 //   --no-harden      No revoca los permisos de anon/authenticated/service_role sobre el esquema logistica.
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { loadCanonicalMigrations } from './lib.mjs';
 import { resolve, join } from 'node:path';
 import process from 'node:process';
 import { URL } from 'node:url';
 import pg from 'pg';
 
 const args = new Set(process.argv.slice(2));
-const known = new Set(['--dry-run', '--create-roles', '--set-passwords', '--no-harden']);
+const known = new Set(['--dry-run', '--create-roles', '--set-passwords', '--no-harden', '--from-zip']);
 for (const arg of args) {
   if (!known.has(arg)) fail(`Opción desconocida: ${arg}`);
 }
@@ -78,17 +81,34 @@ if (/\.pooler\.supabase\.com$/.test(parsedUrl.hostname) && parsedUrl.port === '6
 
 const packageDir = resolve(process.env.DATABASE_PACKAGE_DIR ?? '../db-proyecto');
 const migrationsDir = join(packageDir, 'database', 'migrations');
-if (!existsSync(migrationsDir)) fail(`No existe ${migrationsDir}. Revisa DATABASE_PACKAGE_DIR.`);
+// Sin carpeta del paquete (por ejemplo en otra máquina con solo el repositorio) se usa el paquete canónico de git.
+const useZip = args.has('--from-zip') || !existsSync(migrationsDir);
 
-const files = readdirSync(migrationsDir).filter((name) => /^\d{3}_.+\.sql$/.test(name)).sort();
-if (files.length === 0) fail('No hay migraciones .sql en el paquete.');
+function loadMigrations() {
+  if (useZip) {
+    try {
+      return loadCanonicalMigrations(
+        new URL('../../.ci/database-package.zip', import.meta.url),
+        new URL('../../.ci/database-package.json', import.meta.url),
+      );
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : String(error));
+    }
+  }
+  const files = readdirSync(migrationsDir).filter((name) => /^\d{3}_.+\.sql$/.test(name)).sort();
+  return files.map((name) => ({
+    name,
+    sql: readFileSync(join(migrationsDir, name), 'utf8'),
+    checksum: createHash('sha256').update(readFileSync(join(migrationsDir, name))).digest('hex'),
+  }));
+}
 
-const migrations = files.map((name) => {
-  const sql = readFileSync(join(migrationsDir, name), 'utf8');
+const migrations = loadMigrations();
+if (migrations.length === 0) fail('No hay migraciones .sql en el paquete.');
+for (const migration of migrations) {
   // Las migraciones se envían por el protocolo normal: no pueden usar meta-comandos de psql (\ir, \set...).
-  if (/^\\/m.test(sql)) fail(`${name} contiene meta-comandos de psql; no se puede aplicar sin psql.`);
-  return { name, sql, checksum: createHash('sha256').update(readFileSync(join(migrationsDir, name))).digest('hex') };
-});
+  if (/^\\/m.test(migration.sql)) fail(`${migration.name} contiene meta-comandos de psql; no se puede aplicar sin psql.`);
+}
 
 const client = new pg.Client({
   connectionString: connectionStringWithoutSslMode(databaseUrl),
@@ -199,6 +219,7 @@ async function report() {
 
 try {
   process.stdout.write(`Destino: ${describeTarget(databaseUrl)}${dryRun ? '  (dry-run)' : ''}\n`);
+  process.stdout.write(`Paquete: ${useZip ? 'canónico del repositorio (.ci/database-package.zip)' : packageDir} · ${migrations.length} migraciones\n`);
   await client.connect();
   if (createRoles) await ensureRoles();
 
