@@ -22,6 +22,8 @@ export interface AppDependencies {
   /** Debe rechazar si PostgreSQL no responde; /health devuelve 503 en ese caso. */
   /** Límite de intentos por IP en /auth/login y /auth/register; sin valor, no se limita. */
   readonly authRateLimit?: { readonly maxRequests: number; readonly windowMs: number; readonly now?: () => number };
+  /** Límite de pedidos de tienda por IP (POST /store/orders); sin valor, no se limita. */
+  readonly storeRateLimit?: { readonly maxRequests: number; readonly windowMs: number; readonly now?: () => number };
   /** Saltos de proxy confiables (X-Forwarded-For). Sin valor, se usa la IP del socket. */
   readonly trustProxyHops?: number;
   readonly checkDatabase?: () => Promise<unknown>;
@@ -71,6 +73,8 @@ export function createApp(dependencies: AppDependencies) {
       response.setHeader('Vary', 'Origin');
       response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Idempotency-Key');
+      // El navegador solo deja leer estas cabeceras de respuesta si se exponen: el pedido repetido y la espera sugerida.
+      response.setHeader('Access-Control-Expose-Headers', 'Idempotent-Replayed,Retry-After');
     }
 
     if (request.method === 'OPTIONS') {
@@ -84,6 +88,9 @@ export function createApp(dependencies: AppDependencies) {
   app.use(requireJsonObject);
   if (dependencies.authRateLimit) {
     app.use(createRateLimiter({ ...dependencies.authRateLimit, paths: AUTH_RATE_LIMITED_PATHS }));
+  }
+  if (dependencies.storeRateLimit) {
+    app.use(createRateLimiter({ ...dependencies.storeRateLimit, paths: ['/store/orders'] }));
   }
   app.get('/health', async (_request, response) => {
     if (dependencies.checkDatabase) {

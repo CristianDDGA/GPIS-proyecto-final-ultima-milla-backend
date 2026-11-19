@@ -51,7 +51,7 @@ try {
     run(command, commandArgs, false, env, 600_000);
   } else {
     mkdirSync('reports', { recursive: true });
-    run(process.execPath,['--experimental-vm-modules','node_modules/jest/bin/jest.js','--config','jest.integration.config.js','--runInBand','--json','--outputFile','reports/postgres.json'],false,env);
+    run(process.execPath,['--experimental-vm-modules','node_modules/jest/bin/jest.js','--config','jest.integration.config.js','--runInBand','--json','--outputFile','reports/postgres.json'],false,env,1_200_000);
   }
 } finally {
   try {

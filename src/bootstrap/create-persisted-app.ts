@@ -24,6 +24,10 @@ import { createCourierApplicationsModule } from '../modules/courier-applications
 import { PrismaApplicationRepository } from '../modules/courier-applications/infrastructure/postgres/prisma-application.repository.js';
 import { DiskFileStorage } from '../modules/courier-applications/infrastructure/storage/disk-file-storage.js';
 import type { FileStorage } from '../modules/courier-applications/application/ports/file-storage.port.js';
+import { createStoreModule } from '../modules/store/index.js';
+import { PrismaStoreRepository } from '../modules/store/infrastructure/postgres/prisma-store.repository.js';
+import { ProductImageStorageAdapter } from '../modules/store/infrastructure/storage/product-image-storage.js';
+import type { ProductImageStorage } from '../modules/store/application/ports/store.ports.js';
 
 export interface PersistedAppOptions {
   readonly actorContext?: ActorContextPort;
@@ -41,6 +45,11 @@ export interface PersistedAppOptions {
   /** Almacén de las imágenes de las solicitudes de conductor. Por defecto, disco en `uploadsDir`. */
   readonly fileStorage?: FileStorage;
   readonly uploadsDir?: string;
+  /** Almacén de las imágenes de los productos. Por defecto, disco en `productUploadsDir`. */
+  readonly productImageStorage?: ProductImageStorage;
+  readonly productUploadsDir?: string;
+  /** Límite de pedidos de tienda por IP. Sin valor: 30 por minuto. */
+  readonly storeRateLimit?: { readonly maxRequests: number; readonly windowMs: number };
   /** Pedidos por viaje con los que nace un conductor aprobado. */
   readonly courierDefaultCapacity?: number;
 }
@@ -96,10 +105,22 @@ export function createPersistedApp(
     ...(options?.courierDefaultCapacity !== undefined ? { defaultCapacity: options.courierDefaultCapacity } : {}),
   });
 
+  const storeRepository = new PrismaStoreRepository(database);
+  const store = createStoreModule({
+    catalog: storeRepository,
+    orders: storeRepository,
+    images:
+      options?.productImageStorage ??
+      new ProductImageStorageAdapter(
+        new DiskFileStorage(options?.productUploadsDir ?? process.env['PRODUCT_UPLOADS_DIR'] ?? './storage/product-images'),
+      ),
+  });
+
   return createApp({
     webOrigin,
     checkDatabase: () => database.$queryRaw`SELECT 1`,
     ...(options?.authRateLimit ? { authRateLimit: options.authRateLimit } : {}),
+    storeRateLimit: options?.storeRateLimit ?? { maxRequests: 30, windowMs: 60_000 },
     ...(options?.trustProxyHops !== undefined ? { trustProxyHops: options.trustProxyHops } : {}),
     tokenService: auth.tokenService,
     tokenRevocationStore: auth.revocationStore,
@@ -109,6 +130,7 @@ export function createPersistedApp(
     routers: [
       { basePath: '/auth', router: auth.router },
       { basePath: '/courier-applications', router: courierApplications.router },
+      { basePath: '/store', router: store.router },
       ...routes.routers,
       ...routeOperations.routers,
       { basePath: '/', router: couriers.router },
@@ -117,6 +139,7 @@ export function createPersistedApp(
     errorHandlers: [
       auth.errorHandler,
       courierApplications.errorHandler,
+      store.errorHandler,
       routes.errorHandler,
       routeOperations.errorHandler,
       couriers.errorHandler,

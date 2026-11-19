@@ -30,8 +30,14 @@ function extractBearer(request: Request, tokens: TokenService): TokenPayload {
 function isPublicRoute(method: string, path: string): boolean {
   if (method === 'OPTIONS') return true;
   if (method === 'GET' && path === '/health') return true;
+  // Imágenes de producto: son públicas por naturaleza (una etiqueta <img> no puede enviar Authorization) y su
+  // nombre es aleatorio; solo se admite el formato exacto del nombre generado por el servidor.
+  if (method === 'GET' && STORE_IMAGE_RE.test(path)) return true;
   return path === '/auth' || path.startsWith('/auth/');
 }
+
+const STORE_IMAGE_RE = /^\/store\/images\/[0-9a-f]{32}\.(?:jpg|png)$/;
+const STORE_CHECKOUT_RE = /^\/store\/orders\/?$/;
 
 interface RoutePolicy {
   readonly roles: readonly AppRole[];
@@ -46,6 +52,15 @@ function resolvePolicy(method: string, path: string): RoutePolicy | null {
   // Solicitudes para ser conductor: /me es del cliente (dueño); el resto es la revisión del administrador.
   if (path === '/courier-applications' || path.startsWith('/courier-applications/')) {
     return COURIER_APPLICATION_SELF_RE.test(path) ? { roles: ['cliente'] } : { roles: ['personal'] };
+  }
+
+  // Tienda: la administración es del administrador; comprar es solo del cliente; consultar, de ambos.
+  // Cualquier otra ruta o método bajo /store se niega por defecto a quien no sea administrador.
+  if (path === '/store' || path.startsWith('/store/')) {
+    if (path === '/store/admin' || path.startsWith('/store/admin/')) return { roles: ['personal'] };
+    if (method === 'POST' && STORE_CHECKOUT_RE.test(path)) return { roles: ['cliente'] };
+    if (method === 'GET') return { roles: ['personal', 'cliente'] };
+    return { roles: ['personal'] };
   }
 
   if (path === '/zones' || path.startsWith('/zones/')) {

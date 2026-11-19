@@ -5,6 +5,7 @@ import { createPersistedApp } from './create-persisted-app.js';
 import { ConsoleEmailSender } from '../modules/auth/infrastructure/email/console-email-sender.js';
 import { createJsonSecurityLog } from '../modules/auth/infrastructure/logging/json-security-log.js';
 import { SmtpEmailSender } from '../modules/auth/infrastructure/email/smtp-email-sender.js';
+import { createStorages } from './storage.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -17,6 +18,7 @@ if (database) {
     throw new Error('No se pudo conectar PostgreSQL. Revisa Docker y DATABASE_URL.');
   }
 }
+const storages = createStorages(config);
 const app = database
   ? createPersistedApp(database, config.webOrigin, {
       jwtSecret: config.jwtSecret,
@@ -24,7 +26,8 @@ const app = database
       authRateLimit: config.authRateLimit,
       emailVerificationRequired: config.emailVerificationRequired,
       loginLockout: config.loginLockout,
-      uploadsDir: config.courierUploadsDir,
+      fileStorage: storages.courierStorage,
+      productImageStorage: storages.productImages,
       securityLog: createJsonSecurityLog(),
       emailSender: config.mail.transport === 'smtp' ? new SmtpEmailSender(config.mail.smtp) : new ConsoleEmailSender(),
       ...(config.trustProxyHops !== undefined ? { trustProxyHops: config.trustProxyHops } : {}),
@@ -34,10 +37,15 @@ const server = app.listen(config.port, () => {
   process.stdout.write(`API unificada escuchando en http://localhost:${config.port}\n`);
   process.stdout.write(
     database
-      ? 'PostgreSQL conectado: zonas, pedidos, rutas, operaciones de ruta, repartidores y entregas habilitados en un solo puerto.\n'
+      ? 'PostgreSQL conectado: zonas, pedidos, rutas, operaciones de ruta, repartidores, entregas y tienda habilitados en un solo puerto.\n'
       : 'Sin DATABASE_URL: solo /health habilitado.\n',
   );
 });
+if (database && config.storage.driver === 'disk' && process.env['NODE_ENV'] === 'production') {
+  process.stderr.write(
+    'AVISO: STORAGE_DRIVER=disk en producción. En un hosting con disco efímero (Render) las imágenes se pierden al reiniciar; usa STORAGE_DRIVER=supabase.\n',
+  );
+}
 // headersTimeout debe superar keepAliveTimeout para evitar cortes de conexiones reutilizadas.
 server.requestTimeout = 15_000;
 server.keepAliveTimeout = 65_000;
