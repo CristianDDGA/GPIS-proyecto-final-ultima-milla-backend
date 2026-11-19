@@ -27,9 +27,18 @@ export function mapStoreSqlError(error: unknown): StoreError {
     case '23505':
       if (text.includes('products_sku_idx')) return new StoreError('DUPLICATE_SKU');
       if (text.includes('categories_name_key_idx')) return new StoreError('DUPLICATE_CATEGORY');
+      if (text.includes('customer_addresses_label_idx')) return new StoreError('DUPLICATE_ADDRESS');
+      if (text.includes('cash_settlements')) return new StoreError('ALREADY_SETTLED');
       return new StoreError('ORDER_CONFLICT');
     case 'LG404':
+      if (text.includes('ORDER_NOT_FOUND')) return new StoreError('ORDER_NOT_FOUND');
+      if (text.includes('ADDRESS_NOT_FOUND')) return new StoreError('ADDRESS_NOT_FOUND');
+      if (text.includes('COURIER_NOT_FOUND')) return new StoreError('COURIER_NOT_FOUND');
       return new StoreError(text.includes('CATEGORY_NOT_FOUND') ? 'CATEGORY_NOT_FOUND' : 'PRODUCT_NOT_FOUND');
+    case 'LG413':
+      return new StoreError('ADDRESS_LIMIT');
+    case 'LG422':
+      return new StoreError('COLLECTION_AMOUNT_MISMATCH');
     case 'LG409':
       return new StoreError('VERSION_CONFLICT');
     case 'LG412':
@@ -42,10 +51,22 @@ export function mapStoreSqlError(error: unknown): StoreError {
       return new StoreError('CATEGORY_NOT_FOUND');
     case '23514':
       if (text.includes('IDEMPOTENCY_PAYLOAD_CONFLICT')) return new StoreError('IDEMPOTENCY_KEY_REUSED');
+      if (text.includes('ORDER_NOT_CANCELLABLE')) return new StoreError('ORDER_NOT_CANCELLABLE');
+      if (text.includes('ORDER_NOT_RESCHEDULABLE')) return new StoreError('ORDER_NOT_RESCHEDULABLE');
+      if (text.includes('MAX_DELIVERY_ATTEMPTS')) return new StoreError('MAX_DELIVERY_ATTEMPTS');
+      if (text.includes('COLLECTION_REQUIRED')) return new StoreError('COLLECTION_REQUIRED');
+      if (text.includes('NOT_A_STORE_ORDER')) return new StoreError('NOT_A_STORE_ORDER');
+      if (text.includes('INVALID_ORDER_TRANSITION')) return new StoreError('STALE_ORDER');
       return new StoreError('VALIDATION_ERROR', 'Los datos no cumplen las reglas de la tienda; revisa nombres, precios y cantidades.');
     case '55P03':
       return new StoreError('OPERATION_IN_PROGRESS');
+    case '40001':
+      return new StoreError('STALE_ORDER');
+    case '22007':
+      return new StoreError('VALIDATION_ERROR', 'La fecha de entrega no puede ser anterior a hoy.');
     default:
+      if (text.includes('NOTHING_TO_SETTLE')) return new StoreError('NOTHING_TO_SETTLE');
+      if (text.includes('DEFAULT_REQUIRED')) return new StoreError('VALIDATION_ERROR', 'Debe haber una dirección predeterminada: marca otra como predeterminada.');
       if (state !== undefined && VALIDATION_STATES.has(state)) return new StoreError('VALIDATION_ERROR');
       return new StoreError('PERSISTENCE_UNAVAILABLE');
   }

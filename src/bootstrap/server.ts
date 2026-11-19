@@ -19,6 +19,7 @@ if (database) {
   }
 }
 const storages = createStorages(config);
+let notificationWorker: { start(): void; stop(): void } | undefined;
 const app = database
   ? createPersistedApp(database, config.webOrigin, {
       jwtSecret: config.jwtSecret,
@@ -29,11 +30,13 @@ const app = database
       fileStorage: storages.courierStorage,
       productImageStorage: storages.productImages,
       securityLog: createJsonSecurityLog(),
+      onNotificationWorker: (worker) => { notificationWorker = worker; },
       emailSender: config.mail.transport === 'smtp' ? new SmtpEmailSender(config.mail.smtp) : new ConsoleEmailSender(),
       ...(config.trustProxyHops !== undefined ? { trustProxyHops: config.trustProxyHops } : {}),
     })
   : createApp({ webOrigin: config.webOrigin });
 const server = app.listen(config.port, () => {
+  notificationWorker?.start();
   process.stdout.write(`API unificada escuchando en http://localhost:${config.port}\n`);
   process.stdout.write(
     database
@@ -55,6 +58,7 @@ let shuttingDown = false;
 function shutdown(exitCode: number): void {
   if (shuttingDown) return;
   shuttingDown = true;
+  notificationWorker?.stop();
   process.exitCode = exitCode;
   // Si el cierre ordenado se cuelga (conexiones abiertas), se fuerza la salida.
   setTimeout(() => process.exit(1), SHUTDOWN_TIMEOUT_MS).unref();

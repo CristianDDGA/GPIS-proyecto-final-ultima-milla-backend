@@ -163,17 +163,82 @@ guardó antes, responde `409 VERSION_CONFLICT` y no cambia nada.
 El stock de un producto cambia con ajustes del administrador (`stock-adjustments`) y con cada compra. Cada cambio queda en
 un libro de movimientos: el stock actual siempre es la suma de sus movimientos.
 
+## Flujos por rol (migración 011)
+
+Todo lo anterior sigue igual. Esta sección **agrega** endpoints y estados; no cambia ninguna respuesta existente de
+`/store`, `/orders`, rutas ni entregas, salvo lo indicado en "Compatibilidad".
+
+### Estados del pedido
+
+`pendiente → asignado_a_ruta → recogido → en_camino → entregado`, más dos estados nuevos:
+
+- `cancelado`: desde `pendiente`, `asignado_a_ruta` o `entrega_fallida` (con la ruta ya cerrada). Es final.
+- `entrega_fallida`: el conductor no pudo entregar (desde `en_camino`). La parada sigue en su ruta hasta que la ruta se
+  cierra; después el pedido se **reprograma** (vuelve a `pendiente`) o se **cancela**. Máximo **3 intentos** de entrega.
+
+### Cliente (dueño) y administrador
+
+| Endpoint | Cuerpo | Notas |
+| --- | --- | --- |
+| `POST /store/orders/:id/cancel` | `{ "reason", "note"? }` | `reason`: `cliente_desiste`, `error_en_pedido`, `sin_stock`, `no_localizable`, `demora`, `otro`. Devuelve el stock una sola vez y libera la franja. Idempotente: cancelar algo ya cancelado responde `200` con `alreadyCancelled: true`. |
+| `POST /store/orders/:id/reschedule` | `{ "deliveryDate", "deliveryTime" }` | Solo con `entrega_fallida` y ruta cerrada. Hora en punto. `409 SCHEDULE_CONFLICT` con `details.reason` (`slot_invalid`, `slot_unavailable`, `slot_full`). |
+| `GET /store/addresses` | | Libreta del cliente (máximo 10). La predeterminada va primero. |
+| `POST /store/addresses` | `{ "label", "zoneId", "address", "recipientName"?, "recipientPhone"?, "isDefault"? }` | La primera siempre es predeterminada. `409 DUPLICATE_ADDRESS` / `ADDRESS_LIMIT`. |
+| `PATCH /store/addresses/:id` | `{ "expectedVersion", ...campos }` | `409 VERSION_CONFLICT` si cambió. No se puede quitar la marca de predeterminada sin elegir otra. |
+| `DELETE /store/addresses/:id` | | `204`. Si era la predeterminada, otra pasa a serlo. |
+
+El cliente solo puede cancelar y reprogramar **sus** pedidos (si no, `404 ORDER_NOT_FOUND`). Un pedido recogido, en camino,
+entregado o con la ruta abierta responde `409 ORDER_NOT_CANCELLABLE` / `ORDER_NOT_RESCHEDULABLE`; tras 3 intentos fallidos
+reprogramar responde `409 MAX_DELIVERY_ATTEMPTS` y solo queda cancelar.
+
+### Conductor (`repartidor`)
+
+| Endpoint | Cuerpo | Notas |
+| --- | --- | --- |
+| `GET /store/courier/orders` | | Sus paradas con `version`, dirección, destinatario, `totalCents` a cobrar, productos (`items`) y `failedAttempts`. |
+| `POST /store/courier/orders/:id/deliver` | `{ "expectedVersion", "collectedCents" }` + `Idempotency-Key` | El monto cobrado debe ser **exactamente** el total (`422 COLLECTION_AMOUNT_MISMATCH`). Registra el efectivo y marca `entregado`. |
+| `POST /store/courier/orders/:id/fail` | `{ "expectedVersion", "reason", "note"? }` + `Idempotency-Key` | `reason`: `cliente_ausente`, `direccion_incorrecta`, `cliente_rechazo`, `zona_inaccesible`, `otro`. Devuelve el número de `attempt`. |
+| `GET /store/courier/cash?date=AAAA-MM-DD` | | Lo cobrado ese día (Ecuador) y, si ya se rindió, la diferencia. |
+
+Reintentar con la misma `Idempotency-Key` devuelve el mismo resultado con la cabecera `Idempotent-Replayed: true`; la misma
+clave con otro monto o motivo responde `422 IDEMPOTENCY_KEY_REUSED`. `409 STALE_ORDER` significa que el pedido cambió o ya no
+está en su ruta: hay que refrescar la lista.
+
+### Administrador (`personal`)
+
+| Endpoint | Notas |
+| --- | --- |
+| `GET /store/admin/orders?status=&deliveryDate=&zoneId=&expand=items&page=&pageSize=` | Despacho: pedidos de la tienda con cliente, destinatario y, con `expand=items`, sus productos. |
+| `GET /store/admin/low-stock?threshold=5&limit=50` | Productos con stock igual o menor al umbral. |
+| `GET /store/admin/summary?from=&to=` | Pedidos por estado, ventas (`grossCents`, sin cancelados), cobrado, cancelaciones y fallas por motivo, top 5 de productos. |
+| `GET /store/admin/cash?date=` | Cobrado por conductor y su rendición. |
+| `POST /store/admin/cash/settlements` | `{ "courierUserId", "date", "receivedCents", "note"? }`. Una sola rendición por conductor y día (`409 ALREADY_SETTLED`); sin cobros, `409 NOTHING_TO_SETTLE`. Devuelve `expectedCents`, `receivedCents` y `differenceCents`. |
+
+### Avisos por correo al cliente
+
+Cada pedido de tienda deja un aviso en cola, dentro de la misma transacción que el cambio, para: pedido recibido,
+`en_camino`, `entregado`, `entrega_fallida`, `cancelado` y reprogramado. Un proceso de la API los envía (varias instancias
+no se pisan; hasta 5 intentos con espera creciente). Solo reciben correo las cuentas cuyo correo se **confirmó con código**;
+en modo demo (`EMAIL_VERIFICATION_REQUIRED=false`) o con correos ficticios el aviso se omite.
+
+### Compatibilidad con lo que ya existe
+
+- `/orders`, `/delivery-orders`, `/routes` y el resto no cambian de forma. Un pedido puede ahora aparecer con `estado`
+  `cancelado` o `entrega_fallida`; un frontend que muestre el estado como texto o color debe tener un valor por defecto.
+- Un pedido **de tienda** ya no se puede marcar `entregado` por el endpoint genérico de estado sin registrar el cobro
+  (`409 COLLECTION_REQUIRED`): el conductor debe usar `POST /store/courier/orders/:id/deliver`. Los pedidos normales
+  (`POST /orders`) se entregan igual que antes y no tienen cobro.
+- Cualquier ruta nueva de `/store` se niega por defecto a quien no tenga el rol correspondiente.
+
 ## Alcance actual y lo que no incluye
 
 Incluido: catálogo, búsqueda y filtros, ofertas, administración con historial, stock con libro de movimientos,
-franjas de entrega con cupo, pedido atómico e idempotente, imágenes en disco o Supabase Storage.
+franjas de entrega con cupo, pedido atómico e idempotente, imágenes en disco o Supabase Storage, cancelación con
+devolución de stock, entrega fallida con reprogramación (3 intentos), cobro contra entrega, rendición de caja, libreta de
+direcciones, reportes del administrador y avisos por correo.
 
-**No incluido todavía** (a propósito, para no afectar al frontend actual):
-
-- **Cancelar un pedido de tienda y devolver el stock.** El estado `cancelado` no existe en el ciclo de entrega y los lectores
-  de respuesta del frontend de entregas y repartidores no lo conocen. Es el siguiente paso natural; requerirá un estado
-  nuevo, una función SQL que devuelva el stock una sola vez y que el frontend lo reconozca.
-- Pago en línea (el único método es `contra_entrega`), varios vendedores, reseñas, cupones y devoluciones.
+**No incluido** (fuera del alcance del proyecto simulado): pago en línea (el único método es `contra_entrega`), varios
+vendedores, reseñas, cupones, devoluciones posteriores a la entrega y notificaciones push.
 
 ## Qué debe hacer el frontend
 
@@ -184,6 +249,6 @@ franjas de entrega con cupo, pedido atómico e idempotente, imágenes en disco o
 3. **Pagar:** genera una `Idempotency-Key` (UUID) al abrir la pantalla de pago, deshabilita el botón al hacer clic y, si la
    conexión falla, reintenta **con la misma clave**. Si responde `409 ORDER_CONFLICT`, muestra el detalle, actualiza el carrito
    y genera una clave nueva para el siguiente intento.
-4. **Errores:** `400` muestra el `message`; `401` lleva al inicio de sesión; `409 VERSION_CONFLICT` pide recargar;
+4. **Errores:** `400` muestra el `message`; `401` lleva al inicio de sesión; `403` oculta la acción; `409 VERSION_CONFLICT` o `STALE_ORDER` piden recargar;
    `429` pide esperar; `503` permite reintentar.
 5. Al subir una imagen, actualiza la `version` con la de la respuesta (la imagen incrementa la versión del producto).

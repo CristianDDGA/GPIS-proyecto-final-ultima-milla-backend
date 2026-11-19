@@ -24,7 +24,8 @@ import { createCourierApplicationsModule } from '../modules/courier-applications
 import { PrismaApplicationRepository } from '../modules/courier-applications/infrastructure/postgres/prisma-application.repository.js';
 import { DiskFileStorage } from '../modules/courier-applications/infrastructure/storage/disk-file-storage.js';
 import type { FileStorage } from '../modules/courier-applications/application/ports/file-storage.port.js';
-import { createStoreModule } from '../modules/store/index.js';
+import { createStoreModule, type NotificationWorker } from '../modules/store/index.js';
+import { PrismaFlowsRepository } from '../modules/store/infrastructure/postgres/prisma-flows.repository.js';
 import { PrismaStoreRepository } from '../modules/store/infrastructure/postgres/prisma-store.repository.js';
 import { ProductImageStorageAdapter } from '../modules/store/infrastructure/storage/product-image-storage.js';
 import type { ProductImageStorage } from '../modules/store/application/ports/store.ports.js';
@@ -37,6 +38,8 @@ export interface PersistedAppOptions {
   readonly trustProxyHops?: number;
   /** Sin valor, los correos se escriben en la consola (solo desarrollo). */
   readonly emailSender?: EmailSender;
+  /** Recibe el proceso de avisos por correo de la tienda (si hay correo configurado) para que el servidor lo inicie y lo detenga. */
+  readonly onNotificationWorker?: (worker: NotificationWorker) => void;
   /** Por defecto true; false = modo demo. */
   readonly emailVerificationRequired?: boolean;
   readonly loginLockout?: { readonly maxFailures: number; readonly lockSeconds: number };
@@ -109,12 +112,16 @@ export function createPersistedApp(
   const store = createStoreModule({
     catalog: storeRepository,
     orders: storeRepository,
+    flows: new PrismaFlowsRepository(database),
+    ...(options?.emailSender ? { emailSender: options.emailSender } : {}),
     images:
       options?.productImageStorage ??
       new ProductImageStorageAdapter(
         new DiskFileStorage(options?.productUploadsDir ?? process.env['PRODUCT_UPLOADS_DIR'] ?? './storage/product-images'),
       ),
   });
+
+  if (store.notificationWorker) options?.onNotificationWorker?.(store.notificationWorker);
 
   return createApp({
     webOrigin,

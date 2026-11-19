@@ -135,7 +135,7 @@ function toLine(row: LineRow): StoreOrderLine {
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Repite una operación idempotente ante interbloqueo o fallo de serialización, con espera corta y aleatoria. */
-async function withRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+export async function withRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {

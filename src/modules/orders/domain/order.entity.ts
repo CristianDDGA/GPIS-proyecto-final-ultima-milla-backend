@@ -1,7 +1,7 @@
 import { OrderValidationError } from './order.errors.js';
 import { validateDeliveryDate, validateDeliveryTime, validateUuid } from './order.validation.js';
 
-const ORDER_STATUSES = ['pendiente', 'asignado_a_ruta', 'recogido', 'en_camino', 'entregado'] as const;
+const ORDER_STATUSES = ['pendiente', 'asignado_a_ruta', 'recogido', 'en_camino', 'entregado', 'entrega_fallida', 'cancelado'] as const;
 export type OrderStatus = typeof ORDER_STATUSES[number];
 
 export interface OrderDelivery {

@@ -38,6 +38,8 @@ function isPublicRoute(method: string, path: string): boolean {
 
 const STORE_IMAGE_RE = /^\/store\/images\/[0-9a-f]{32}\.(?:jpg|png)$/;
 const STORE_CHECKOUT_RE = /^\/store\/orders\/?$/;
+const STORE_ADDRESSES_RE = /^\/store\/addresses(?:\/[^/]+)?\/?$/;
+const STORE_ORDER_ACTION_RE = /^\/store\/orders\/[^/]+\/(?:cancel|reschedule)\/?$/;
 
 interface RoutePolicy {
   readonly roles: readonly AppRole[];
@@ -58,6 +60,12 @@ function resolvePolicy(method: string, path: string): RoutePolicy | null {
   // Cualquier otra ruta o método bajo /store se niega por defecto a quien no sea administrador.
   if (path === '/store' || path.startsWith('/store/')) {
     if (path === '/store/admin' || path.startsWith('/store/admin/')) return { roles: ['personal'] };
+    // Conductor: su ruta, entregas con cobro, entregas fallidas y su caja (nadie más).
+    if (path === '/store/courier' || path.startsWith('/store/courier/')) return { roles: ['repartidor'] };
+    // Libreta de direcciones: solo el cliente, y solo las suyas (la base de datos lo vuelve a comprobar).
+    if (STORE_ADDRESSES_RE.test(path)) return { roles: ['cliente'] };
+    // Cancelar o reprogramar: el cliente dueño o el administrador (el dueño se verifica en la base de datos).
+    if (method === 'POST' && STORE_ORDER_ACTION_RE.test(path)) return { roles: ['cliente', 'personal'] };
     if (method === 'POST' && STORE_CHECKOUT_RE.test(path)) return { roles: ['cliente'] };
     if (method === 'GET') return { roles: ['personal', 'cliente'] };
     return { roles: ['personal'] };

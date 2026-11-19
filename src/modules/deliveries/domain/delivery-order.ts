@@ -6,7 +6,9 @@ export type OrderStatus =
   | 'asignado_a_ruta'
   | 'recogido'
   | 'en_camino'
-  | 'entregado';
+  | 'entregado'
+  | 'entrega_fallida'
+  | 'cancelado';
 
 export type TargetDeliveryStatus = 'recogido' | 'en_camino' | 'entregado';
 
@@ -51,6 +53,9 @@ export const ALLOWED_STATUS_TRANSITIONS: Readonly<
   recogido: 'en_camino',
   en_camino: 'entregado',
   entregado: null,
+  // Los estados nuevos no avanzan por el cambio de estado genérico: los producen funciones propias (fallar, cancelar).
+  entrega_fallida: null,
+  cancelado: null,
 };
 
 const UUID_REGEX =
@@ -83,7 +88,9 @@ export function validateOrderStatus(value: unknown): OrderStatus {
     value === 'asignado_a_ruta' ||
     value === 'recogido' ||
     value === 'en_camino' ||
-    value === 'entregado'
+    value === 'entregado' ||
+    value === 'entrega_fallida' ||
+    value === 'cancelado'
   ) {
     return value;
   }
