@@ -3,6 +3,8 @@
 import { Buffer } from 'node:buffer';
 import { createHash, randomBytes, scrypt } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import process from 'node:process';
 import { inflateRawSync } from 'node:zlib';
 
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex');
@@ -67,4 +69,18 @@ export function hashPassword(password) {
       else resolve(`scrypt$${saltHex}$${derived.toString('hex')}`);
     });
   });
+}
+
+/** Opción ssl de pg según DB_SSL (disable | require | verify) y DB_SSL_CA, igual que la API. Lanza si el valor no es válido. */
+export function sslOptionFromEnv(env = process.env) {
+  const mode = (env.DB_SSL ?? '').trim().toLowerCase();
+  if (mode === '' || mode === 'disable') return undefined;
+  if (mode === 'require') return { rejectUnauthorized: false };
+  if (mode === 'verify') {
+    const raw = (env.DB_SSL_CA ?? '').trim();
+    if (raw === '') return { rejectUnauthorized: true };
+    const ca = raw.includes('BEGIN CERTIFICATE') ? raw.replaceAll(String.raw`\n`, '\n') : readFileSync(resolve(raw), 'utf8');
+    return { rejectUnauthorized: true, ca };
+  }
+  throw new Error('DB_SSL debe ser disable, require o verify.');
 }

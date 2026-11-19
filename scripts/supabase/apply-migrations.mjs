@@ -23,7 +23,7 @@
 //   --no-harden      No revoca los permisos de anon/authenticated/service_role sobre el esquema logistica.
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { loadCanonicalMigrations } from './lib.mjs';
+import { loadCanonicalMigrations, sslOptionFromEnv } from './lib.mjs';
 import { resolve, join } from 'node:path';
 import process from 'node:process';
 import { URL } from 'node:url';
@@ -51,16 +51,7 @@ function describeTarget(url) {
 }
 
 function sslOption() {
-  const mode = (process.env.DB_SSL ?? '').trim().toLowerCase();
-  if (mode === '' || mode === 'disable') return undefined;
-  if (mode === 'require') return { rejectUnauthorized: false };
-  if (mode === 'verify') {
-    const raw = (process.env.DB_SSL_CA ?? '').trim();
-    if (raw === '') return { rejectUnauthorized: true };
-    const ca = raw.includes('BEGIN CERTIFICATE') ? raw.replace(/\\n/g, '\n') : readFileSync(resolve(raw), 'utf8');
-    return { rejectUnauthorized: true, ca };
-  }
-  return fail('DB_SSL debe ser disable, require o verify.');
+  try { return sslOptionFromEnv(); } catch (error) { return fail(error.message); }
 }
 
 // pg da prioridad a sslmode de la URL sobre la opción ssl; se quita para que mande DB_SSL.

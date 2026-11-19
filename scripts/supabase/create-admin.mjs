@@ -14,12 +14,10 @@
 //
 // Es seguro repetirlo: si el correo ya existe, no toca nada. El administrador nace con el correo verificado y puede
 // cambiar su clave luego desde la API (`POST /auth/change-password`).
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import process from 'node:process';
 import { URL } from 'node:url';
 import pg from 'pg';
-import { hashPassword } from './lib.mjs';
+import { hashPassword, sslOptionFromEnv } from './lib.mjs';
 
 function fail(message) {
   process.stderr.write(`ERROR: ${message}\n`);
@@ -27,16 +25,7 @@ function fail(message) {
 }
 
 function sslOption() {
-  const mode = (process.env.DB_SSL ?? '').trim().toLowerCase();
-  if (mode === '' || mode === 'disable') return undefined;
-  if (mode === 'require') return { rejectUnauthorized: false };
-  if (mode === 'verify') {
-    const raw = (process.env.DB_SSL_CA ?? '').trim();
-    if (raw === '') return { rejectUnauthorized: true };
-    const ca = raw.includes('BEGIN CERTIFICATE') ? raw.replace(/\\n/g, '\n') : readFileSync(resolve(raw), 'utf8');
-    return { rejectUnauthorized: true, ca };
-  }
-  return fail('DB_SSL debe ser disable, require o verify.');
+  try { return sslOptionFromEnv(); } catch (error) { return fail(error.message); }
 }
 
 const databaseUrl = process.env.MIGRATION_DATABASE_URL;
