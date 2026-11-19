@@ -30,7 +30,7 @@ export const MAX_PRICE_CENTS = 100_000_000; // USD 1.000.000,00
 export const MAX_STOCK = 1_000_000;
 const MAX_NOTE_LENGTH = 300;
 
-function fail(message: string): never {
+export function fail(message: string): never {
   throw new StoreError('VALIDATION_ERROR', message);
 }
 
@@ -45,7 +45,7 @@ export function bodyObject(value: unknown): Record<string, unknown> {
 }
 
 /** Rechaza campos desconocidos: evita asignación masiva y errores de escritura silenciosos. */
-function onlyKeys(body: Record<string, unknown>, allowed: readonly string[]): void {
+export function onlyKeys(body: Record<string, unknown>, allowed: readonly string[]): void {
   for (const key of Object.keys(body)) {
     if (!allowed.includes(key)) fail(`El campo '${key.slice(0, 40)}' no está permitido.`);
   }
@@ -61,47 +61,47 @@ export function validateImageKey(value: unknown): string {
   return value;
 }
 
-function integer(value: unknown, label: string, min: number, max: number): number {
+export function integer(value: unknown, label: string, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value)) return fail(`${label} debe ser un número entero.`);
   if (value < min || value > max) return fail(`${label} debe estar entre ${min} y ${max}.`);
   return value;
 }
 
-function boolean(value: unknown, label: string): boolean {
+export function boolean(value: unknown, label: string): boolean {
   if (typeof value !== 'boolean') return fail(`${label} debe ser verdadero o falso.`);
   return value;
 }
 
-function requireField(body: Record<string, unknown>, key: string, label: string): unknown {
+export function requireField(body: Record<string, unknown>, key: string, label: string): unknown {
   if (!(key in body) || body[key] === undefined) return fail(`${label} es obligatorio.`);
   return body[key];
 }
 
-function checkedText(result: { ok: true; value: string } | { ok: false; reason: string }): string {
+export function checkedText(result: { ok: true; value: string } | { ok: false; reason: string }): string {
   if (!result.ok) return fail(result.reason);
   return result.value;
 }
 
-function nullableText(value: unknown, validate: (value: unknown) => { ok: true; value: string } | { ok: false; reason: string }): string | null {
+export function nullableText(value: unknown, validate: (value: unknown) => { ok: true; value: string } | { ok: false; reason: string }): string | null {
   if (value === null) return null;
   if (typeof value === 'string' && value.trim() === '') return null;
   return checkedText(validate(value));
 }
 
-function expectedVersion(body: Record<string, unknown>): number {
+export function expectedVersion(body: Record<string, unknown>): number {
   return integer(requireField(body, 'expectedVersion', 'expectedVersion'), 'expectedVersion', 1, Number.MAX_SAFE_INTEGER);
 }
 
 // ---------------------------------------------------------------------------------------------- consultas
 
-function queryString(query: Record<string, unknown>, key: string): string | undefined {
+export function queryString(query: Record<string, unknown>, key: string): string | undefined {
   const value = query[key];
   if (value === undefined) return undefined;
   if (typeof value !== 'string') return fail(`El parámetro ${key} debe aparecer una sola vez y ser texto.`);
   return value;
 }
 
-function queryInteger(query: Record<string, unknown>, key: string, min: number, max: number): number | undefined {
+export function queryInteger(query: Record<string, unknown>, key: string, min: number, max: number): number | undefined {
   const raw = queryString(query, key);
   if (raw === undefined || raw === '') return undefined;
   if (!/^\d{1,10}$/.test(raw)) return fail(`El parámetro ${key} debe ser un número entero.`);

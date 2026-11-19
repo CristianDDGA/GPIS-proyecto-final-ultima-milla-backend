@@ -13,6 +13,20 @@ export type StoreErrorCode =
   | 'INSUFFICIENT_STOCK'
   | 'ORDER_CONFLICT'
   | 'IDEMPOTENCY_KEY_REUSED'
+  | 'ORDER_NOT_CANCELLABLE'
+  | 'ORDER_NOT_RESCHEDULABLE'
+  | 'MAX_DELIVERY_ATTEMPTS'
+  | 'SCHEDULE_CONFLICT'
+  | 'STALE_ORDER'
+  | 'COLLECTION_AMOUNT_MISMATCH'
+  | 'COLLECTION_REQUIRED'
+  | 'NOT_A_STORE_ORDER'
+  | 'ADDRESS_NOT_FOUND'
+  | 'ADDRESS_LIMIT'
+  | 'DUPLICATE_ADDRESS'
+  | 'ALREADY_SETTLED'
+  | 'NOTHING_TO_SETTLE'
+  | 'COURIER_NOT_FOUND'
   | 'OPERATION_IN_PROGRESS'
   | 'FILE_TOO_LARGE'
   | 'UNSUPPORTED_MEDIA_TYPE'
@@ -33,6 +47,20 @@ const DEFAULT_MESSAGES: Record<StoreErrorCode, string> = {
   INSUFFICIENT_STOCK: 'El stock disponible no alcanza para ese ajuste.',
   ORDER_CONFLICT: 'No se pudo completar el pedido: revisa los productos y la franja de entrega.',
   IDEMPOTENCY_KEY_REUSED: 'Esa Idempotency-Key ya se usó con un pedido distinto. Usa una clave nueva.',
+  ORDER_NOT_CANCELLABLE: 'El pedido ya no se puede cancelar: está recogido, en camino o cerrado.',
+  ORDER_NOT_RESCHEDULABLE: 'Solo se puede reprogramar un pedido con entrega fallida cuya ruta ya se cerró.',
+  MAX_DELIVERY_ATTEMPTS: 'El pedido ya agotó sus 3 intentos de entrega: solo puede cancelarse.',
+  SCHEDULE_CONFLICT: 'La franja elegida no está disponible. Elige otra.',
+  STALE_ORDER: 'El pedido cambió o ya no está en tu ruta. Actualiza tu lista y vuelve a intentarlo.',
+  COLLECTION_AMOUNT_MISMATCH: 'El monto cobrado debe ser exactamente el total del pedido.',
+  COLLECTION_REQUIRED: 'Un pedido de tienda se entrega registrando el cobro.',
+  NOT_A_STORE_ORDER: 'Este pedido no es de la tienda y se entrega sin cobro.',
+  ADDRESS_NOT_FOUND: 'La dirección no existe.',
+  ADDRESS_LIMIT: 'Solo puedes guardar hasta 10 direcciones.',
+  DUPLICATE_ADDRESS: 'Ya tienes una dirección con ese nombre.',
+  ALREADY_SETTLED: 'La caja de ese conductor ya se rindió para esa fecha.',
+  NOTHING_TO_SETTLE: 'Ese conductor no tiene cobros en esa fecha.',
+  COURIER_NOT_FOUND: 'El conductor no existe.',
   OPERATION_IN_PROGRESS: 'La operación sigue en proceso. Vuelve a intentarlo en unos segundos.',
   FILE_TOO_LARGE: 'La imagen supera el límite permitido.',
   UNSUPPORTED_MEDIA_TYPE: 'Solo se aceptan imágenes JPEG o PNG.',

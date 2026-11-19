@@ -5,7 +5,7 @@ export { POSTGRES_INTEGER_MAX } from './route.validation.js';
 export const ROUTE_STATUSES = ['planificada', 'asignada', 'en_curso', 'completada', 'cancelada'] as const;
 export type RouteStatus = typeof ROUTE_STATUSES[number];
 
-export const ORDER_STATUSES = ['pendiente', 'asignado_a_ruta', 'recogido', 'en_camino', 'entregado'] as const;
+export const ORDER_STATUSES = ['pendiente', 'asignado_a_ruta', 'recogido', 'en_camino', 'entregado', 'entrega_fallida', 'cancelado'] as const;
 export type StopOrderStatus = typeof ORDER_STATUSES[number];
 
 // The only grouping/ordering policy this sprint exposes: zone + date, then delivery time and ID.

@@ -1,5 +1,6 @@
 import express, { Router, type ErrorRequestHandler, type Request, type RequestHandler, type Response } from 'express';
 import { getRequestActor } from '../../../../bootstrap/auth.middleware.js';
+import type { StoreFlowsUseCases } from '../../application/flows.use-cases.js';
 import { MAX_PRODUCT_IMAGE_BYTES, type FileContent, type StoreActor, type StoreUseCases } from '../../application/store.use-cases.js';
 import { StoreError, type StoreErrorCode } from '../../domain/store.errors.js';
 
@@ -18,6 +19,20 @@ const STATUS_BY_CODE: Record<StoreErrorCode, number> = {
   INSUFFICIENT_STOCK: 409,
   ORDER_CONFLICT: 409,
   IDEMPOTENCY_KEY_REUSED: 422,
+  ORDER_NOT_CANCELLABLE: 409,
+  ORDER_NOT_RESCHEDULABLE: 409,
+  MAX_DELIVERY_ATTEMPTS: 409,
+  SCHEDULE_CONFLICT: 409,
+  STALE_ORDER: 409,
+  COLLECTION_AMOUNT_MISMATCH: 422,
+  COLLECTION_REQUIRED: 409,
+  NOT_A_STORE_ORDER: 409,
+  ADDRESS_NOT_FOUND: 404,
+  ADDRESS_LIMIT: 409,
+  DUPLICATE_ADDRESS: 409,
+  ALREADY_SETTLED: 409,
+  NOTHING_TO_SETTLE: 409,
+  COURIER_NOT_FOUND: 404,
   OPERATION_IN_PROGRESS: 409,
   FILE_TOO_LARGE: 413,
   UNSUPPORTED_MEDIA_TYPE: 415,
@@ -72,7 +87,7 @@ function sendImage(response: Response, file: FileContent): void {
 // Acepta el cuerpo binario solo con Content-Type de imagen; cualquier otro tipo deja el cuerpo sin interpretar.
 const rawImage = express.raw({ type: ['image/jpeg', 'image/png'], limit: MAX_PRODUCT_IMAGE_BYTES });
 
-export function createStoreRouter(useCases: StoreUseCases): Router {
+export function createStoreRouter(useCases: StoreUseCases, flows?: StoreFlowsUseCases): Router {
   const router = Router();
   const param = (request: Request, name: string): unknown => request.params[name];
 
@@ -182,7 +197,82 @@ export function createStoreRouter(useCases: StoreUseCases): Router {
     response.status(200).json(await useCases.adminUpdateSettings(currentActor(), request.body));
   }));
 
+  if (flows !== undefined) mountFlowRoutes(router, flows);
   return router;
+}
+
+/** Flujos por rol (migración 011): cancelar, reprogramar, conductor, caja, direcciones y reportes del administrador. */
+function mountFlowRoutes(router: Router, flows: StoreFlowsUseCases): void {
+  const param = (request: Request, name: string): unknown => request.params[name];
+
+  // --- Cliente (dueño) y administrador ---
+  router.post('/orders/:id/cancel', route(async (request, response) => {
+    response.status(200).json(await flows.cancelOrder(currentActor(), param(request, 'id'), request.body));
+  }));
+
+  router.post('/orders/:id/reschedule', route(async (request, response) => {
+    response.status(200).json(await flows.rescheduleOrder(currentActor(), param(request, 'id'), request.body));
+  }));
+
+  // --- Libreta de direcciones del cliente ---
+  router.get('/addresses', route(async (_request, response) => {
+    response.status(200).json(await flows.listAddresses(currentActor()));
+  }));
+
+  router.post('/addresses', route(async (request, response) => {
+    response.status(201).json(await flows.createAddress(currentActor(), request.body));
+  }));
+
+  router.patch('/addresses/:id', route(async (request, response) => {
+    response.status(200).json(await flows.updateAddress(currentActor(), param(request, 'id'), request.body));
+  }));
+
+  router.delete('/addresses/:id', route(async (request, response) => {
+    await flows.deleteAddress(currentActor(), param(request, 'id'));
+    response.status(204).end();
+  }));
+
+  // --- Conductor: su ruta con productos y total, entrega con cobro, entrega fallida y su caja ---
+  router.get('/courier/orders', route(async (_request, response) => {
+    response.status(200).json(await flows.courierOrders(currentActor()));
+  }));
+
+  router.post('/courier/orders/:id/deliver', route(async (request, response) => {
+    const result = await flows.deliverOrder(currentActor(), param(request, 'id'), request.body, request.get('Idempotency-Key'));
+    if (result.replayed) response.setHeader('Idempotent-Replayed', 'true');
+    response.status(200).json(result);
+  }));
+
+  router.post('/courier/orders/:id/fail', route(async (request, response) => {
+    const result = await flows.failDelivery(currentActor(), param(request, 'id'), request.body, request.get('Idempotency-Key'));
+    if (result.replayed) response.setHeader('Idempotent-Replayed', 'true');
+    response.status(200).json(result);
+  }));
+
+  router.get('/courier/cash', route(async (request, response) => {
+    response.status(200).json(await flows.courierCash(currentActor(), query(request)));
+  }));
+
+  // --- Administrador: despacho, stock bajo, resumen y rendición de caja (el RBAC exige rol personal en /admin) ---
+  router.get('/admin/orders', route(async (request, response) => {
+    response.status(200).json(await flows.adminOrders(currentActor(), query(request)));
+  }));
+
+  router.get('/admin/low-stock', route(async (request, response) => {
+    response.status(200).json(await flows.lowStock(currentActor(), query(request)));
+  }));
+
+  router.get('/admin/summary', route(async (request, response) => {
+    response.status(200).json(await flows.summary(currentActor(), query(request)));
+  }));
+
+  router.get('/admin/cash', route(async (request, response) => {
+    response.status(200).json(await flows.adminCash(currentActor(), query(request)));
+  }));
+
+  router.post('/admin/cash/settlements', route(async (request, response) => {
+    response.status(201).json(await flows.settleCash(currentActor(), request.body));
+  }));
 }
 
 /** Solo responde a rutas /store: un error del módulo, o una imagen demasiado grande, sale con el sobre JSON común. */

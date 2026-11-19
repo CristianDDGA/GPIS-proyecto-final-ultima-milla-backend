@@ -16,12 +16,15 @@ export const requiredFiles = [
   'database/migrations/008_user_activation.sql',
   'database/migrations/009_courier_applications.sql',
   'database/migrations/010_store.sql',
+  'database/migrations/011_flows.sql',
   'database/scripts/migrate.sh',
   'database/seeds/demo.sql',
   'database/tests/integration.sql',
   'database/tests/run.sh',
   'database/tests/store.sql',
   'database/tests/store-race.sh',
+  'database/tests/flows.sql',
+  'database/tests/flows-race.sh',
 ];
 
 export function verifyDatabasePackage(directory) {

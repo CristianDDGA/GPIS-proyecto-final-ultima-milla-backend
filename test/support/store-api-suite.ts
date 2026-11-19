@@ -5,8 +5,21 @@ import type { InMemoryFileStorage } from '../../src/modules/courier-applications
 // Suite HTTP de la tienda. Se ejecuta IGUAL contra el repositorio en memoria y contra PostgreSQL real
 // (migración 010): lo que cambia es solo cómo se arma el arnés. Los resultados deben ser idénticos.
 
+/** Despacho simulado: en producción lo hacen los módulos de rutas y entregas; aquí se reproduce para probar los flujos. */
+export interface StoreDispatch {
+  /** Crea una ruta con esos pedidos y la asigna al conductor del arnés. Devuelve el id de la ruta. */
+  assign(orderIds: readonly string[]): Promise<string>;
+  advance(orderId: string, to: 'recogido' | 'en_camino'): Promise<void>;
+  /** Cierra la ruta (todas sus paradas entregadas o con entrega fallida). */
+  closeRoute(routeId: string): Promise<void>;
+}
+
 export interface StoreHarness {
   readonly app: ReturnType<typeof createApp>;
+  readonly driverUserId: string;
+  readonly dispatch: StoreDispatch;
+  /** Tipos de aviso por correo que quedaron en cola para el pedido, en orden de creación. */
+  readonly notificationKinds: (orderId: string) => Promise<string[]>;
   readonly adminToken: string;
   readonly customerToken: string;
   readonly otherCustomerToken: string;
