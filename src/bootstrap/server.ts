@@ -49,6 +49,11 @@ if (database && config.storage.driver === 'disk' && process.env['NODE_ENV'] === 
     'AVISO: STORAGE_DRIVER=disk en producción. En un hosting con disco efímero (Render) las imágenes se pierden al reiniciar; usa STORAGE_DRIVER=supabase.\n',
   );
 }
+if (database && process.env['NODE_ENV'] === 'production' && config.emailVerificationRequired && config.mail.transport !== 'smtp') {
+  process.stderr.write(
+    'AVISO: EMAIL_VERIFICATION_REQUIRED=true sin SMTP_HOST en producción. Los códigos de verificación solo se escriben en el registro del servidor y los clientes no podrán confirmar su correo. Configura SMTP_* o, solo para una demo, EMAIL_VERIFICATION_REQUIRED=false.\n',
+  );
+}
 // headersTimeout debe superar keepAliveTimeout para evitar cortes de conexiones reutilizadas.
 server.requestTimeout = 15_000;
 server.keepAliveTimeout = 65_000;

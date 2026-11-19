@@ -39,11 +39,15 @@ export DB_SSL=require
 export APP_PASSWORD='<contrasena-app>' WORKER_PASSWORD='<contrasena-worker>' READONLY_PASSWORD='<contrasena-readonly>'
 
 # 1) Ensayo: muestra qué se aplicaría y no cambia nada
-node scripts/supabase/apply-migrations.mjs --create-roles --dry-run
+node scripts/supabase/apply-migrations.mjs --from-zip --create-roles --dry-run
 
 # 2) Aplicación real
-node scripts/supabase/apply-migrations.mjs --create-roles
+node scripts/supabase/apply-migrations.mjs --from-zip --create-roles
 ```
+
+`--from-zip` usa el paquete canónico del repositorio (`.ci/database-package.zip`, las migraciones 001 a 011), verificado
+contra su manifiesto y el SHA-256 de cada archivo. Así la migración sale solo de git: no depende de la carpeta
+`db-proyecto` ni de quién la tenga. Sin `--from-zip`, el script usa `DATABASE_PACKAGE_DIR` si esa carpeta existe.
 
 El script es repetible: la segunda vez dice "ya aplicada" en cada migración. Si alguien edita una migración ya aplicada,
 se detiene (checksum SHA-256), igual que `migrate.sh`.
@@ -52,7 +56,23 @@ Además revoca a `anon`, `authenticated` y `service_role` cualquier permiso sobr
 API pública de Supabase no pueda leer ni ejecutar nada de la logística. Al final imprime una tabla de comprobación:
 `logistica_app`, `logistica_worker` y `logistica_readonly` deben mostrar `USAGE=true` y los roles de Supabase `USAGE=false`.
 
-## 3 bis. Imágenes: Supabase Storage
+## 3 bis. Primer administrador
+
+Una base nueva no tiene usuarios y el registro público solo crea clientes. Crea el primer administrador una sola vez
+(misma conexión directa, 5432):
+
+```bash
+export MIGRATION_DATABASE_URL='postgresql://postgres:<CONTRASENA>@db.<id>.supabase.co:5432/postgres'
+export DB_SSL=require
+export ADMIN_EMAIL='tu-correo@dominio.com' ADMIN_PASSWORD='<clave-larga-de-12+>' ADMIN_NAME='Tu Nombre'
+node scripts/supabase/create-admin.mjs
+```
+
+La clave se guarda solo como hash scrypt (el mismo formato de la API) y la cuenta nace con el correo verificado. Repetir el
+comando no cambia nada si el correo ya existe. Cambia la clave después con `POST /auth/change-password`. Con ese
+administrador creas conductores desde la API; los clientes se registran solos.
+
+## 3 ter. Imágenes: Supabase Storage
 
 En Render el disco se borra al reiniciar o redesplegar, así que las imágenes no pueden vivir en él. La API guarda los
 archivos en Supabase Storage con `STORAGE_DRIVER=supabase`; en la base de datos solo queda el nombre del archivo.
@@ -111,10 +131,47 @@ La API escucha en `PORT`, que Render define.
 
 ```bash
 curl -s https://<tu-api>.onrender.com/health
+curl -s -X POST https://<tu-api>.onrender.com/auth/login -H 'content-type: application/json'   -d '{"email":"<ADMIN_EMAIL>","password":"<ADMIN_PASSWORD>"}'
 ```
 
-Debe responder `200` con la base conectada. Si responde `503`, revisa `DATABASE_URL`, `DB_SSL` y que el proyecto de
-Supabase no esté pausado.
+`/health` debe responder `200` con la base conectada. Si responde `503`, revisa `DATABASE_URL`, `DB_SSL` y que el
+proyecto de Supabase no esté pausado. El inicio de sesión del administrador debe devolver un `token`.
+
+Lista de verificación antes de dar el enlace al frontend:
+
+- [ ] `apply-migrations.mjs` terminó con `anon`, `authenticated` y `service_role` en `USAGE=false`.
+- [ ] El esquema `logistica` **no** está en *Exposed schemas* de la API de Supabase.
+- [ ] El bucket `product-images` es público y `courier-applications` es privado, sin políticas de escritura.
+- [ ] `JWT_SECRET` es nuevo (no el de desarrollo) y `WEB_ORIGIN` es exactamente la URL del frontend.
+- [ ] `SMTP_*` y `MAIL_FROM` configurados (ver abajo). Sin SMTP los clientes no pueden confirmar su correo.
+- [ ] Un administrador creó una zona, una categoría y un producto con imagen; la imagen se ve en el catálogo.
+- [ ] Un cliente de prueba se registró, confirmó el correo, hizo un pedido y lo canceló (el stock volvió).
+
+## 6 bis. Correos al cliente y plan gratuito de Render
+
+La API envía los avisos del pedido (recibido, en camino, entregado, fallido, cancelado, reprogramado) con un proceso interno
+que revisa la cola cada 15 segundos. Los avisos están guardados en la base de datos: si el servicio duerme, no se pierden;
+se envían cuando despierta. En el plan gratuito de Render el servicio duerme tras 15 minutos sin tráfico, así que un
+aviso puede tardar hasta que llegue la siguiente petición. Para envíos puntuales usa un plan que no duerma, o un monitor
+externo gratuito que consulte `/health` cada 10 minutos.
+
+Con `EMAIL_VERIFICATION_REQUIRED=true` y sin `SMTP_HOST`, la API escribe los códigos de verificación en su registro y
+arranca con un aviso: sirve solo para desarrollo. Solo reciben avisos las cuentas con el correo confirmado por código.
+
+## 6 ter. Datos que ya tengas en la base local
+
+La migración crea una base **vacía**. Los datos de desarrollo (pedidos de prueba, usuarios de demo) no se copian: en la nube
+conviene empezar limpio. Si necesitaras conservar algo concreto, exporta solo esas tablas con `pg_dump --data-only -t
+logistica.<tabla>` desde la base local y cárgalas con el usuario `postgres`, respetando el orden de las claves foráneas.
+Los usuarios traen su hash de contraseña, así que seguirían entrando con la misma clave. Los archivos que estén en disco
+(`./storage`) tampoco se copian: súbelos a los buckets con el mismo nombre de archivo.
+
+## 6 quáter. Copias de seguridad y volver atrás
+
+- Supabase hace copias diarias en los planes de pago; en el gratuito **no** hay copias automáticas: antes de una demo
+  importante exporta con `pg_dump` (esquema `logistica`).
+- Las migraciones son transaccionales (si una falla, no queda a medias) y no se editan una vez aplicadas. Un cambio nuevo
+  es siempre una migración nueva (`012_...`), que se agrega al paquete con `npm run db:package`.
 
 ## 7. Problemas comunes
 
