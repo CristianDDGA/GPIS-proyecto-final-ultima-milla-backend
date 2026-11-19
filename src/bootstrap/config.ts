@@ -1,4 +1,5 @@
 import { DEFAULT_JWT_EXPIRES_IN_SECONDS } from '../modules/auth/index.js';
+import { isAppRoleUser, resolveDatabaseOptions } from './database-options.js';
 import type { SmtpConfig } from '../modules/auth/infrastructure/email/smtp-email-sender.js';
 
 export interface AppConfig {
@@ -9,8 +10,22 @@ export interface AppConfig {
   readonly jwtExpiresInSeconds: number;
   readonly authRateLimit: { readonly maxRequests: number; readonly windowMs: number };
   readonly trustProxyHops?: number;
-  /** Carpeta privada donde se guardan las imágenes de las solicitudes de conductor. */
+  /** Carpeta privada donde se guardan las imágenes de las solicitudes de conductor (con STORAGE_DRIVER=disk). */
   readonly courierUploadsDir: string;
+  /** Carpeta donde se guardan las imágenes de los productos (con STORAGE_DRIVER=disk). */
+  readonly productUploadsDir: string;
+  /** Dónde viven las imágenes: disco local (desarrollo) o Supabase Storage (nube). */
+  readonly storage:
+    | { readonly driver: 'disk' }
+    | {
+        readonly driver: 'supabase';
+        readonly supabaseUrl: string;
+        readonly serviceRoleKey: string;
+        /** Bucket público de imágenes de producto. */
+        readonly productBucket: string;
+        /** Bucket privado de las fotos de conductores. */
+        readonly courierBucket: string;
+      };
   readonly loginLockout: { readonly maxFailures: number; readonly lockSeconds: number };
   /** false = modo demo (sin verificación ni SMTP para clientes). */
   readonly emailVerificationRequired: boolean;
@@ -23,6 +38,41 @@ const JWT_SECRET_HELP =
   "Genera uno con: node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\" y guárdalo en .env (nunca en Git).";
 // Secretos que estuvieron en el código o en ejemplos públicos: cualquiera podría falsificar tokens con ellos.
 const KNOWN_INSECURE_SECRETS = new Set(['dev-only-jwt-secret-change-in-prod']);
+
+const BUCKET_NAME_RE = /^[a-z0-9][a-z0-9._-]{1,62}$/;
+
+function loadStorageConfig(environment: NodeJS.ProcessEnv): AppConfig['storage'] {
+  const driver = (environment.STORAGE_DRIVER ?? 'disk').trim().toLowerCase();
+  if (driver === 'disk') return { driver: 'disk' };
+  if (driver !== 'supabase') throw new Error('STORAGE_DRIVER debe ser disk o supabase.');
+
+  const rawUrl = environment.SUPABASE_URL?.trim();
+  if (!rawUrl) throw new Error('SUPABASE_URL es obligatoria con STORAGE_DRIVER=supabase (por ejemplo https://<id-del-proyecto>.supabase.co).');
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { throw new Error('SUPABASE_URL debe ser una URL válida.'); }
+  const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(isLocal && url.protocol === 'http:')) {
+    throw new Error('SUPABASE_URL debe usar https (http solo para una instancia local).');
+  }
+  if (url.username !== '' || url.password !== '' || (url.pathname !== '/' && url.pathname !== '') || url.search !== '' || url.hash !== '') {
+    throw new Error('SUPABASE_URL debe ser solo el origen del proyecto, sin ruta, credenciales ni parámetros.');
+  }
+  // La clave de servicio da control total sobre el almacenamiento: nunca se muestra en un mensaje de error.
+  const serviceRoleKey = environment.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!serviceRoleKey || serviceRoleKey.length < 20) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY es obligatoria con STORAGE_DRIVER=supabase. Solo va en las variables de entorno del servidor.');
+  }
+  const productBucket = environment.SUPABASE_PRODUCT_BUCKET?.trim() || 'product-images';
+  const courierBucket = environment.SUPABASE_COURIER_BUCKET?.trim() || 'courier-applications';
+  if (!BUCKET_NAME_RE.test(productBucket) || !BUCKET_NAME_RE.test(courierBucket)) {
+    throw new Error('Los nombres de bucket solo admiten minúsculas, números, punto, guion y guion bajo (2 a 63 caracteres).');
+  }
+  if (productBucket === courierBucket) {
+    // Las fotos de licencia y selfie son datos personales: nunca en el mismo bucket (público) que el catálogo.
+    throw new Error('SUPABASE_PRODUCT_BUCKET y SUPABASE_COURIER_BUCKET deben ser distintos.');
+  }
+  return { driver: 'supabase', supabaseUrl: url.origin, serviceRoleKey, productBucket, courierBucket };
+}
 
 export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
   const port = Number(environment.PORT ?? '3000');
@@ -49,9 +99,11 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     try { parsedDatabase = new URL(databaseUrl); } catch {
       throw new Error('DATABASE_URL debe ser una conexión PostgreSQL válida.');
     }
-    if (!['postgres:', 'postgresql:'].includes(parsedDatabase.protocol) || parsedDatabase.username !== 'logistica_app') {
-      throw new Error('La API requiere una conexión PostgreSQL con el rol logistica_app.');
+    if (!['postgres:', 'postgresql:'].includes(parsedDatabase.protocol) || !isAppRoleUser(parsedDatabase.username)) {
+      throw new Error('La API requiere una conexión PostgreSQL con el rol logistica_app (con el pooler de Supabase: logistica_app.<id-del-proyecto>).');
     }
+    // Falla al arrancar, no en la primera consulta, si DB_SSL / DB_SSL_CA / DB_SEND_STATEMENT_TIMEOUT son inválidos.
+    resolveDatabaseOptions(databaseUrl, environment);
   }
 
   const jwtSecret = environment.JWT_SECRET;
@@ -131,12 +183,16 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     throw new Error('En producción, con verificación de correo activa, SMTP_HOST es obligatorio.');
   }
 
+  const storage = loadStorageConfig(environment);
+
   return {
     port,
     emailVerificationRequired,
     mail,
+    storage,
     loginLockout: { maxFailures: loginMaxFailures, lockSeconds: loginLockSeconds },
     courierUploadsDir: environment.COURIER_UPLOADS_DIR?.trim() || './storage/courier-applications',
+    productUploadsDir: environment.PRODUCT_UPLOADS_DIR?.trim() || './storage/product-images',
     ...(trustProxyHops !== undefined ? { trustProxyHops } : {}),
     webOrigin,
     jwtSecret,

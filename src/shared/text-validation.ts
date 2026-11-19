@@ -18,6 +18,24 @@ function countLetters(value: string): number {
   return (value.match(/\p{L}/gu) ?? []).length;
 }
 
+// Caracteres invisibles, de control o que cambian el aspecto del texto: ninguna regla de texto los admite.
+// \p{C} cubre controles, formato (ZWJ, dirección de escritura), sustitutos y no asignados; los selectores de
+// variación (U+FE00-FE0F) son marcas, no entran en \p{C}, y son los que convierten un dígito en emoji.
+// La lista incluye marcas combinantes A PROPÓSITO (U+034F, selectores de variación): se quieren rechazar sueltas,
+// no tratarlas como parte de otro carácter. Por eso se desactiva esta regla del linter solo en esta línea.
+// eslint-disable-next-line no-misleading-character-class
+const INVISIBLE_OR_CONTROL = /[\p{C}\u00AD͏ᅟᅠㅤ︀-️ﾠ\u{E0100}-\u{E01EF}]/u;
+// Una marca combinante solo es válida pegada a una letra, como máximo 2 seguidas, y nunca una marca envolvente
+// (U+20E3 "keycap" convierte "1" en un emoji). Así "1️⃣", "5⃣" y el texto apilado tipo zalgo quedan fuera.
+const ENCLOSING_MARK = /\p{Me}/u;
+const STACKED_MARKS = /\p{M}{3,}/u;
+const MARK_WITHOUT_LETTER = /(?<![\p{L}\p{M}])\p{M}/u;
+
+/** true si el texto no contiene caracteres invisibles, de control ni marcas combinantes mal puestas. */
+export function isCleanVisibleText(value: string): boolean {
+  return !INVISIBLE_OR_CONTROL.test(value) && !ENCLOSING_MARK.test(value) && !STACKED_MARKS.test(value) && !MARK_WITHOUT_LETTER.test(value);
+}
+
 const PERSON_NAME = /^\p{L}[\p{L}\p{M}]*(?:(?:\.? |['’-])\p{L}[\p{L}\p{M}]*)*\.?$/u;
 
 /** Nombre o apellido de una persona: solo letras, espacios, apóstrofo, guion y punto. Sin números ni emojis. */
@@ -27,7 +45,7 @@ export function validatePersonName(value: unknown, label: string): TextResult {
   if (text.length === 0) return fail(`${label} es obligatorio.`);
   if (text.length > 120) return fail(`${label} no puede superar 120 caracteres.`);
   if (countLetters(text) < 2) return fail(`${label} debe tener al menos 2 letras.`);
-  if (!PERSON_NAME.test(text)) {
+  if (!isCleanVisibleText(text) || !PERSON_NAME.test(text)) {
     return fail(`${label} solo admite letras, espacios, apóstrofo, guion y punto; no se permiten números, emojis ni símbolos.`);
   }
   return { ok: true, value: text };
@@ -42,7 +60,7 @@ export function validatePlaceName(value: unknown, label: string): TextResult {
   if (text.length === 0) return fail(`${label} es obligatorio.`);
   if (text.length < 2 || text.length > 80) return fail(`${label} debe tener entre 2 y 80 caracteres.`);
   if (countLetters(text) < 2) return fail(`${label} debe incluir al menos 2 letras.`);
-  if (!PLACE_NAME.test(text)) {
+  if (!isCleanVisibleText(text) || !PLACE_NAME.test(text)) {
     return fail(`${label} solo admite letras, números, espacios y . , ' & / ( ) # -; no se permiten emojis ni símbolos.`);
   }
   return { ok: true, value: text };
@@ -57,7 +75,7 @@ export function validateAddressText(value: unknown, label: string): TextResult {
   if (text.length === 0) return fail(`${label} no puede estar vacía.`);
   if (text.length < 5 || text.length > 200) return fail(`${label} debe tener entre 5 y 200 caracteres.`);
   if (countLetters(text) < 2) return fail(`${label} debe incluir al menos 2 letras.`);
-  if (!ADDRESS.test(text)) {
+  if (!isCleanVisibleText(text) || !ADDRESS.test(text)) {
     return fail(`${label} solo admite letras, números, espacios y . , ' & / ( ) # ° º -; no se permiten emojis ni símbolos.`);
   }
   return { ok: true, value: text };

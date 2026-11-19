@@ -3,7 +3,7 @@ import { existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const requiredFiles = [
+export const requiredFiles = [
   'compose.test.yaml',
   'database/init/00-bootstrap.sh',
   'database/migrations/001_schema.sql',
@@ -15,10 +15,13 @@ const requiredFiles = [
   'database/migrations/007_email_verification.sql',
   'database/migrations/008_user_activation.sql',
   'database/migrations/009_courier_applications.sql',
+  'database/migrations/010_store.sql',
   'database/scripts/migrate.sh',
   'database/seeds/demo.sql',
   'database/tests/integration.sql',
   'database/tests/run.sh',
+  'database/tests/store.sql',
+  'database/tests/store-race.sh',
 ];
 
 export function verifyDatabasePackage(directory) {
