@@ -163,7 +163,7 @@ export function defineStoreApiSuite(
       ['un emoji', { name: 'Mesa \u{1F6B2}' }],
       ['un dígito keycap', { name: 'Set 1️⃣ piezas' }],
       ['una marca combinante envolvente', { name: 'Set 5⃣ piezas' }],
-      ['un carácter invisible (ZWJ)', { name: 'Hogar‍casa' }],
+      ['un carácter invisible (ZWJ)', { name: 'Hogar\u200Dcasa' }],
       ['letras de otro alfabeto', { name: 'Привет mundo' }],
       ['texto apilado (zalgo)', { name: 'Zó́́́na' }],
       ['una etiqueta HTML', { name: '<script>alert(1)</script>' }],

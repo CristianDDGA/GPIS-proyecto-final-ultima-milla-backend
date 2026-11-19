@@ -24,7 +24,7 @@ function countLetters(value: string): number {
 // La lista incluye marcas combinantes A PROPÓSITO (U+034F, selectores de variación): se quieren rechazar sueltas,
 // no tratarlas como parte de otro carácter. Por eso se desactiva esta regla del linter solo en esta línea.
 // eslint-disable-next-line no-misleading-character-class
-const INVISIBLE_OR_CONTROL = /[\p{C}­͏ᅟᅠㅤ︀-️ﾠ\u{E0100}-\u{E01EF}]/u;
+const INVISIBLE_OR_CONTROL = /[\p{C}\u00AD͏ᅟᅠㅤ︀-️ﾠ\u{E0100}-\u{E01EF}]/u;
 // Una marca combinante solo es válida pegada a una letra, como máximo 2 seguidas, y nunca una marca envolvente
 // (U+20E3 "keycap" convierte "1" en un emoji). Así "1️⃣", "5⃣" y el texto apilado tipo zalgo quedan fuera.
 const ENCLOSING_MARK = /\p{Me}/u;

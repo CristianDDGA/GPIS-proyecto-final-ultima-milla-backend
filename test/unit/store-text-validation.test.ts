@@ -18,7 +18,7 @@ const BAD_NAMES: ReadonlyArray<readonly [string, string]> = [
   ['emoji de bicicleta', 'Bicicleta \u{1F6B2}'],
   ['emoji de cara', 'Hola \u{1F600} mundo'],
   ['emoji de corazón con selector de variación', 'Amor ❤️ eterno'],
-  ['emoji con ZWJ (familia)', 'Familia \u{1F468}‍\u{1F469}‍\u{1F467}'],
+  ['emoji con ZWJ (familia)', 'Familia \u{1F468}\u200D\u{1F469}\u200D\u{1F467}'],
   ['dígito keycap 1️⃣', `Set ${KEYCAP_1} piezas`],
   ['dígito keycap sin selector (5⃣)', 'Set 5⃣ piezas'],
   ['selector de variación suelto tras un dígito', 'Set 1️ piezas'],
@@ -27,9 +27,9 @@ const BAD_NAMES: ReadonlyArray<readonly [string, string]> = [
   ['símbolo de derechos de autor', 'Mesa © 2026'],
   ['flecha', 'Entrega → rápida'],
   ['estrella', 'Oferta ★★★'],
-  ['ZWJ invisible entre letras', 'Hogar‍casa'],
-  ['espacio de ancho cero', 'Hogar​casa'],
-  ['inversión de escritura', 'Zona‮abc'],
+  ['ZWJ invisible entre letras', 'Hogar\u200Dcasa'],
+  ['espacio de ancho cero', 'Hogar\u200Bcasa'],
+  ['inversión de escritura', 'Zona\u202Eabc'],
   ['carácter de control', 'Mesa\u0007 grande'],
   ['letras matemáticas decorativas', '\u{1D4D7}\u{1D4F8}\u{1D4F5}\u{1D4EA} mundo'],
   ['letras de ancho completo', 'Ａｂｃ producto'],
@@ -130,7 +130,7 @@ test('endurecimiento: zonas, direcciones y nombres de persona ya no admiten keyc
   assert.equal(ok(validateAddressText(`Calle ${KEYCAP_1} y Av. Amazonas`, 'La dirección')), false);
   assert.equal(ok(validateAddressText('Calle 5⃣ y Av. Amazonas', 'La dirección')), false);
   assert.equal(ok(validatePersonName('Ana⃣ Pérez', 'El nombre')), false);
-  assert.equal(ok(validatePersonName('Ana‍ Pérez', 'El nombre')), false);
+  assert.equal(ok(validatePersonName('Ana\u200D Pérez', 'El nombre')), false);
   // Lo legítimo sigue pasando.
   assert.equal(ok(validatePlaceName('Zona Norte 2', 'La zona')), true);
   assert.equal(ok(validateAddressText('Av. 9 de Octubre #123 y Malecón', 'La dirección')), true);
@@ -141,8 +141,8 @@ test('endurecimiento: zonas, direcciones y nombres de persona ya no admiten keyc
 
 test('isCleanVisibleText distingue texto limpio de texto con caracteres invisibles', () => {
   assert.equal(isCleanVisibleText('Señor Pérez, café 4K'), true);
-  assert.equal(isCleanVisibleText('A​B'), false);
+  assert.equal(isCleanVisibleText('A\u200BB'), false);
   assert.equal(isCleanVisibleText('A️'), false);
   assert.equal(isCleanVisibleText('1⃣'), false);
-  assert.equal(isCleanVisibleText('­hola'), false);
+  assert.equal(isCleanVisibleText('\u00ADhola'), false);
 });
