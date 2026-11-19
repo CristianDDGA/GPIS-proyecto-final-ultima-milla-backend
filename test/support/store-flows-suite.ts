@@ -48,8 +48,9 @@ export function defineStoreFlowsSuite(create: () => Promise<StoreHarness> | Stor
     return response.body as { status: string };
   };
 
-  const cancel = (orderId: string, body: object = { reason: 'cliente_desiste' }, token: string = h.customerToken) =>
-    api().post(`/store/orders/${orderId}/cancel`).set(bearer(token)).send(body);
+  const DEFAULT_CANCEL = { reason: 'cliente_desiste' };
+  const cancel = (orderId: string, body?: object, token: string = h.customerToken) =>
+    api().post(`/store/orders/${orderId}/cancel`).set(bearer(token)).send(body ?? DEFAULT_CANCEL);
 
   const courierList = async () => {
     const response = await api().get('/store/courier/orders').set(driver());
@@ -129,7 +130,7 @@ export function defineStoreFlowsSuite(create: () => Promise<StoreHarness> | Stor
       const first = await placeOrder(product.id);
       const second = await placeOrder(product.id);
       await h.dispatch.assign([first, second]);
-      expect((await courierList()).map((item) => item.orderId).sort()).toEqual([first, second].sort());
+      expect((await courierList()).map((item) => item.orderId).sort((x, y) => x.localeCompare(y))).toEqual([first, second].sort((x, y) => x.localeCompare(y)));
       expect((await cancel(first)).status).toBe(200);
       expect((await courierList()).map((item) => item.orderId)).toEqual([second]);
       expect(await stockOf(product.id)).toBe(9);
