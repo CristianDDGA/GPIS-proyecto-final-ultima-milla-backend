@@ -1,6 +1,6 @@
 {
-    "source": "db-proyecto auth + revocation + email verification + user activation + courier applications + store and flows packages (010_store.sql, 011_flows.sql)",
-    "sha256": "fe5473c9f795b93b13cf0f8291182d5aa2a63eb4b58350b77e699c5f2b723357",
+    "source": "db-proyecto auth + revocation + email verification + user activation + courier applications + store and flows packages (010_store.sql, 011_flows.sql, 012_consistency_definer.sql)",
+    "sha256": "7ef80b4a6903183e382d9593b062fe780e4c9136b82fe3576a80e98c85c229d1",
     "files": {
         "compose.test.yaml": "2e0e518c3387b9ad8ebb54fc7514d2962aafec7d1421555d8e39ac0372530145",
         "database/init/00-bootstrap.sh": "94d55f9bc9694ab3b2dee113e9b8393b9a81b28129d18cd49c875499d9173cf5",
@@ -15,13 +15,14 @@
         "database/migrations/009_courier_applications.sql": "1c543fca25f1c7981b5ae7472826c1ddd5e16bc0af4ce5fe4cc67ac6531eb389",
         "database/migrations/010_store.sql": "f30dc125f0efe1999ea79e3c5ed848a81e2ade295799af8ac8a0cac6b7d33b11",
         "database/migrations/011_flows.sql": "93fed5aa23c80e29b6316245275ede136e084d68f02047de1f3af5a3acbcfd6c",
+        "database/migrations/012_consistency_definer.sql": "acea3efeaecdb6810a82ba38dfc78534fb45b665f3e476fb88d4a81e9d47e111",
         "database/scripts/migrate.sh": "75f606a3b834727c94f183895a58bd04766f2becd24862dadbe53c68cdda515c",
         "database/seeds/demo.sql": "1dafe59880ac8048ff8d6efef562ce1c0f1726766fbfa058f9231444fd6893b7",
         "database/tests/integration.sql": "51d4f4cfa28738916ccab505d3131d38c350731f10d4115c004bff660c1c0016",
         "database/tests/run.sh": "e364446aef6000c7f66623f0e11f2e00841c7fc146172bb80513e2d8ace97d07",
         "database/tests/store.sql": "8656fc804ca3768c688f7381f5b6caa7a598bc4f422ec2641d932caa153cfc4b",
         "database/tests/store-race.sh": "87f03c69de5c7f6a6e6095d7fb5e1f8119ad052d097447c3a1847e6093358b01",
-        "database/tests/flows.sql": "c0b6e1da16231e6dc91428f7a6c485c2cd401a848a1af92b665cd187c72b5274",
+        "database/tests/flows.sql": "b24c03c92dd3c2857a1e8fd95a11342f1a5a60bd2564caa608ff1fe65987095c",
         "database/tests/flows-race.sh": "b5a4968357980845f2a35c38ac0c86ea6404fb234fc5ec4a7e50031d7308fb3d"
     },
     "postgresImage": "postgres@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"
