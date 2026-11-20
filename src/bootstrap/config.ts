@@ -29,6 +29,8 @@ export interface AppConfig {
   readonly loginLockout: { readonly maxFailures: number; readonly lockSeconds: number };
   /** false = modo demo (sin verificación ni SMTP para clientes). */
   readonly emailVerificationRequired: boolean;
+  /** Client ID de OAuth (tipo Web) de Google Cloud. Sin valor, el inicio de sesión con Google queda deshabilitado. Es público, no un secreto. */
+  readonly googleClientId?: string;
   /** console = los correos se escriben en la salida estándar (solo desarrollo). */
   readonly mail: { readonly transport: 'console' } | { readonly transport: 'smtp'; readonly smtp: SmtpConfig };
 }
@@ -184,6 +186,10 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
   }
 
   const storage = loadStorageConfig(environment);
+  const googleClientId = environment.GOOGLE_CLIENT_ID?.trim();
+  if (googleClientId && !/^[0-9A-Za-z._-]+\.apps\.googleusercontent\.com$/.test(googleClientId)) {
+    throw new Error('GOOGLE_CLIENT_ID no tiene el formato de un Client ID de Google (termina en .apps.googleusercontent.com).');
+  }
 
   return {
     port,
@@ -198,6 +204,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv): AppConfig {
     jwtSecret,
     jwtExpiresInSeconds,
     authRateLimit: { maxRequests: authRateLimitMax, windowMs: authRateLimitWindowMs },
+    ...(googleClientId ? { googleClientId } : {}),
     ...(databaseUrl ? { databaseUrl } : {}),
   };
 }

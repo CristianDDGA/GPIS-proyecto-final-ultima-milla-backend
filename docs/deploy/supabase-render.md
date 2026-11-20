@@ -158,6 +158,17 @@ externo gratuito que consulte `/health` cada 10 minutos.
 Con `EMAIL_VERIFICATION_REQUIRED=true` y sin `SMTP_HOST`, la API escribe los códigos de verificación en su registro y
 arranca con un aviso: sirve solo para desarrollo. Solo reciben avisos las cuentas con el correo confirmado por código.
 
+## 6 bis 2. Inicio de sesión con Google (opcional)
+
+1. En Google Cloud Console crea un proyecto (gratis, **sin facturación**) → *APIs y servicios* → *Pantalla de consentimiento de OAuth* (tipo Externo, con solo
+   nombre de la app y tu correo; los ámbitos básicos `openid`, `email` y `profile` no necesitan verificación).
+2. *Credenciales* → *Crear credenciales* → *ID de cliente de OAuth* → tipo **Aplicación web**. En *Orígenes autorizados de JavaScript* agrega
+   `http://localhost:5173` y la URL del frontend en producción (sin ruta). No hace falta URI de redirección con el botón de Google Identity Services.
+3. Copia el **ID de cliente** (`...apps.googleusercontent.com`). Es público: va en `GOOGLE_CLIENT_ID` en Render y en `.env`, y el frontend lo usa en `initialize`.
+   El "secreto de cliente" **no se usa** y no debe ir en ningún lado.
+4. Con la pantalla de consentimiento en modo *Prueba*, solo entran las cuentas que agregues como *Usuarios de prueba*; pásala a *En producción* para abrirla a todos.
+5. Aplica las migraciones 013 y 014 (`apply-migrations.mjs --from-zip`) antes de desplegar.
+
 ## 6 ter. Datos que ya tengas en la base local
 
 La migración crea una base **vacía**. Los datos de desarrollo (pedidos de prueba, usuarios de demo) no se copian: en la nube

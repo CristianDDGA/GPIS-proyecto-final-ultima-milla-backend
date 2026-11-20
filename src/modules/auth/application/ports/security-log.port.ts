@@ -2,6 +2,7 @@ export type SecurityEventType =
   | 'register'
   | 'email_verified'
   | 'login_success'
+  | 'google_linked'
   | 'login_failed'
   | 'login_locked'
   | 'login_unverified'

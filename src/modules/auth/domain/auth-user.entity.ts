@@ -18,7 +18,7 @@ export interface AuthUser {
   readonly emailVerified: boolean;
 }
 
-export type EmailVerifiedVia = 'code' | 'admin' | 'legacy' | 'demo';
+export type EmailVerifiedVia = 'code' | 'admin' | 'legacy' | 'demo' | 'google';
 
 /** Vista para la gestión de usuarios del administrador. Nunca incluye el hash de la clave. */
 export interface AdminUserView extends AuthUser {

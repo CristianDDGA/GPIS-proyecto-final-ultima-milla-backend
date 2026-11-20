@@ -4,6 +4,7 @@ import type {
   CodeCheckResult,
   CodeIssueResult,
   CodePurpose,
+  GoogleLinkResult,
   RegisterUserInput,
   SetActiveResult,
   UserListFilter,
@@ -25,6 +26,7 @@ export class InMemoryAuthRepository implements AuthRepository {
   private readonly codes = new Map<string, StoredCode>();
   private readonly createdAt = new Map<string, number>();
   private readonly usersWithActiveRoute = new Set<string>();
+  private readonly googleSubs = new Map<string, string>(); // userId -> sub
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -69,6 +71,33 @@ export class InMemoryAuthRepository implements AuthRepository {
     this.usersById.set(id, record);
     this.createdAt.set(id, this.now());
     return (await this.findById(id))!;
+  }
+
+  async findByGoogleSub(sub: string): Promise<AuthUserRecord | null> {
+    for (const [userId, value] of this.googleSubs) if (value === sub) return this.usersById.get(userId) ?? null;
+    return null;
+  }
+
+  async registerGoogleUser(input: { sub: string; email: string; displayName: string | null }): Promise<AuthUser> {
+    if ((await this.findByEmail(input.email)) || (await this.findByGoogleSub(input.sub))) throw new AuthError('EMAIL_ALREADY_EXISTS');
+    const id = randomUUID();
+    this.usersById.set(id, {
+      id, authSubject: input.email, email: input.email, passwordHash: null, role: 'cliente', publicRole: toPublicRole('cliente'),
+      displayName: input.displayName, isActive: true, courierId: null, emailVerified: true, emailVerifiedVia: 'google',
+    });
+    this.googleSubs.set(id, input.sub);
+    this.createdAt.set(id, this.now());
+    return (await this.findById(id))!;
+  }
+
+  async linkGoogleAccount(userId: string, sub: string): Promise<GoogleLinkResult> {
+    const record = this.usersById.get(userId);
+    if (!record || !record.isActive || record.role !== 'cliente' || record.emailVerifiedVia !== 'code') return 'NOT_ELIGIBLE';
+    const current = this.googleSubs.get(userId);
+    if (current !== undefined) return current === sub ? 'OK' : 'NOT_ELIGIBLE';
+    if ([...this.googleSubs.values()].includes(sub)) return 'SUB_IN_USE';
+    this.googleSubs.set(userId, sub);
+    return 'OK';
   }
 
   async issueEmailCode(userId: string, purpose: CodePurpose, codeHash: string, ttlSeconds: number): Promise<CodeIssueResult> {

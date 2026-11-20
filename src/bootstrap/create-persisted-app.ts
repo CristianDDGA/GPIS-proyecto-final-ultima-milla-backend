@@ -18,6 +18,8 @@ import type { ActorContextPort } from '../modules/deliveries/application/ports/a
 import { createAuthModule } from '../modules/auth/index.js';
 import { PrismaAuthRepository } from '../modules/auth/infrastructure/postgres/prisma-auth.repository.js';
 import type { EmailSender } from '../modules/auth/application/ports/email-sender.port.js';
+import type { GoogleTokenVerifier } from '../modules/auth/application/ports/google-token-verifier.port.js';
+import { GoogleIdTokenVerifier } from '../modules/auth/infrastructure/crypto/google-id-token-verifier.js';
 import type { SecurityLog } from '../modules/auth/application/ports/security-log.port.js';
 import { PrismaTokenRevocationStore } from '../modules/auth/infrastructure/postgres/prisma-token-revocation.store.js';
 import { createCourierApplicationsModule } from '../modules/courier-applications/index.js';
@@ -38,6 +40,10 @@ export interface PersistedAppOptions {
   readonly trustProxyHops?: number;
   /** Sin valor, los correos se escriben en la consola (solo desarrollo). */
   readonly emailSender?: EmailSender;
+  /** Client ID de Google (público). Con él se habilita POST /auth/google. */
+  readonly googleClientId?: string;
+  /** Pruebas: verificador ya armado (sustituye al de Google). */
+  readonly googleTokenVerifier?: GoogleTokenVerifier;
   /** Recibe el proceso de avisos por correo de la tienda (si hay correo configurado) para que el servidor lo inicie y lo detenga. */
   readonly onNotificationWorker?: (worker: NotificationWorker) => void;
   /** Por defecto true; false = modo demo. */
@@ -87,6 +93,8 @@ export function createPersistedApp(
     repository: new PrismaDeliveryRepository(database),
     actorContext: new RequestActorContext(fallbackActorContext),
   });
+  const googleClientId = options?.googleClientId ?? process.env['GOOGLE_CLIENT_ID']?.trim();
+  const googleVerifier = options?.googleTokenVerifier ?? (googleClientId ? new GoogleIdTokenVerifier({ clientId: googleClientId }) : undefined);
   const auth = createAuthModule({
     repository: new PrismaAuthRepository(database),
     revocationStore: new PrismaTokenRevocationStore(database),
@@ -96,6 +104,7 @@ export function createPersistedApp(
     ...(options?.loginLockout ? { loginLockout: options.loginLockout } : {}),
     ...(options?.securityLog ? { securityLog: options.securityLog } : {}),
     ...(options?.emailVerificationRequired !== undefined ? { emailVerificationRequired: options.emailVerificationRequired } : {}),
+    ...(googleVerifier ? { googleVerifier } : {}),
   });
 
   const courierApplications = createCourierApplicationsModule({

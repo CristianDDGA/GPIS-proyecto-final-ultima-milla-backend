@@ -35,6 +35,7 @@ const HEALTH_DB_TIMEOUT_MS = 2_000;
 // quedan limitados para que no sirvan de relevo de spam ni de fuerza bruta.
 const AUTH_RATE_LIMITED_PATHS = [
   '/auth/login',
+  '/auth/google',
   '/auth/register',
   '/auth/verify-email',
   '/auth/resend-verification',

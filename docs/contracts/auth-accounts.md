@@ -94,6 +94,56 @@ El servidor escribe una línea JSON por evento en la salida estándar (`"channel
   mezclar mayúsculas, números y símbolos: una frase larga es válida. El login no aplica esta política (solo el largo).
 - **Vigencia del token:** 8 horas por defecto (`JWT_EXPIRES_IN_SECONDS`, antes 24 horas). Al vencer hay que iniciar sesión de nuevo.
 
+## Iniciar sesión con Google (migración 014)
+
+Botón "Continuar con Google". El navegador obtiene un **ID token** de Google (Google Identity Services) y el frontend lo envía al backend, que lo
+verifica (firma con las claves públicas de Google, emisor, vigencia y que sea para **nuestro** Client ID). No hay contraseñas de Google en el backend.
+
+`POST /auth/google` (pública, con límite de uso por IP)
+
+```json
+{ "idToken": "<el credential que entrega Google>" }
+```
+
+Respuesta `200`: igual que `/auth/login` → `{ "token": "<JWT de 8 h>", "user": { ... } }`.
+
+| Situación | Resultado |
+| --- | --- |
+| Primera vez, correo nuevo | Se crea un **cliente** con el correo verificado (`emailVerifiedVia: "google"`) y **sin contraseña** |
+| Ya entró antes con esa cuenta de Google | Entra a la misma cuenta (se identifica por el `sub` de Google, aunque cambie su correo) |
+| Existe un **cliente** con ese correo confirmado por código | Se **vincula**: conserva su contraseña y desde ahora también entra con Google |
+| El correo es de un administrador o conductor, o el cliente no confirmó su correo | `403 GOOGLE_NOT_ALLOWED` (esas cuentas entran con correo y contraseña) |
+| Google no confirma el correo (`email_verified` falso) | `403 GOOGLE_NOT_ALLOWED` |
+| Cuenta desactivada | `403 USER_INACTIVE` |
+| Token inventado, de otra app, caducado o mal firmado | `401 INVALID_GOOGLE_TOKEN` |
+| El servidor no tiene `GOOGLE_CLIENT_ID` | `503 GOOGLE_NOT_ENABLED` (el botón debe ocultarse) |
+| No se pudieron obtener las claves de Google | `503 PERSISTENCE_UNAVAILABLE` (reintentar) |
+
+Notas:
+- Un cliente vinculado a Google que luego es aprobado como conductor (solicitud de conductor) conserva su vinculación y puede seguir entrando con Google.
+- Una cuenta creada con Google no tiene contraseña: "olvidé mi contraseña" no le envía nada y `change-password` no aplica; entra siempre con Google.
+- Recibe los correos del pedido igual que el resto: Google prueba que el correo es suyo.
+- El nombre de Google se usa como `displayName` solo si cumple la validación de nombres; si trae números o emojis, la cuenta queda sin nombre.
+
+### Frontend (web)
+
+```html
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+  google.accounts.id.initialize({
+    client_id: '<GOOGLE_CLIENT_ID>.apps.googleusercontent.com',   // público
+    callback: async ({ credential }) => {
+      const r = await fetch(`${API}/auth/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: credential }) });
+      const session = await r.json();                              // { token, user } → misma sesión que /auth/login
+    },
+  });
+  google.accounts.id.renderButton(document.getElementById('google'), { theme: 'outline', size: 'large', text: 'continue_with', locale: 'es' });
+</script>
+```
+
+El origen del frontend (`http://localhost:5173` y el dominio de producción) debe estar en *Authorized JavaScript origins* del Client ID. El mismo Client ID sirve
+para la web; la app móvil necesita su propio Client ID de Android/iOS y el backend debe aceptarlo (hoy solo valida el de la web).
+
 ## Límites de uso
 
 `/auth/login`, `/auth/register`, `/auth/verify-email`, `/auth/resend-verification`, `/auth/forgot-password` y
