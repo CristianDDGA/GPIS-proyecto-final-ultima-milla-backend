@@ -6,7 +6,7 @@ import { createStoreModule } from '../../src/modules/store/index.js';
 import { InMemoryStoreRepository } from '../../src/modules/store/infrastructure/in-memory/in-memory-store.repository.js';
 import { ProductImageStorageAdapter } from '../../src/modules/store/infrastructure/storage/product-image-storage.js';
 import { defineStoreApiSuite, type StoreHarness, type StoreHarnessOptions } from '../support/store-api-suite.js';
-import { defineStoreFlowsSuite } from '../support/store-flows-suite.js';
+import { defineStoreCoordinatesSuite, defineStoreFlowsSuite } from '../support/store-flows-suite.js';
 
 const SECRET = 'store-integration-secret-key-12345';
 const ORIGIN = 'http://127.0.0.1:5173';
@@ -57,4 +57,8 @@ describe('Tienda · API HTTP con repositorio en memoria', () => {
 
 describe('Flujos por rol · API HTTP con repositorio en memoria', () => {
   defineStoreFlowsSuite(() => memoryHarness());
+});
+
+describe('Mapa y coordenadas · API HTTP con repositorio en memoria', () => {
+  defineStoreCoordinatesSuite(() => memoryHarness());
 });

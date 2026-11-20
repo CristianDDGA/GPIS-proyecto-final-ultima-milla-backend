@@ -280,8 +280,33 @@ export function parseIdempotencyKey(value: unknown): string {
   return value.trim().toLowerCase();
 }
 
+/** Rectángulo de Ecuador (incluye Galápagos): atrapa pines mal puestos. Igual que valid_coordinates() en la migración 013. */
+export const ECUADOR_BOUNDS = { minLat: -5.1, maxLat: 1.5, minLng: -92.5, maxLng: -75.0 } as const;
+
+export interface Coordinates { readonly latitude: number | null; readonly longitude: number | null }
+
+function coordinate(value: unknown, label: string, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fail(`${label} debe ser un número.`);
+  if (value < min || value > max) return fail(`${label} está fuera de Ecuador: debe estar entre ${min} y ${max}.`);
+  return value;
+}
+
+/** Pin opcional del mapa. Latitud y longitud van juntas o ninguna; null (o ausentes) significa dirección manual. */
+export function parseCoordinates(body: Record<string, unknown>): Coordinates {
+  const lat = body['latitude'];
+  const lng = body['longitude'];
+  const noLat = lat === undefined || lat === null;
+  const noLng = lng === undefined || lng === null;
+  if (noLat && noLng) return { latitude: null, longitude: null };
+  if (noLat || noLng) return fail('La latitud y la longitud deben enviarse juntas.');
+  return {
+    latitude: coordinate(lat, 'La latitud', ECUADOR_BOUNDS.minLat, ECUADOR_BOUNDS.maxLat),
+    longitude: coordinate(lng, 'La longitud', ECUADOR_BOUNDS.minLng, ECUADOR_BOUNDS.maxLng),
+  };
+}
+
 export function parsePlaceOrder(body: Record<string, unknown>, idempotencyKeyHeader: unknown, customerId: string): PlaceOrderCommand {
-  onlyKeys(body, ['zoneId', 'deliveryAddress', 'deliveryDate', 'deliveryTime', 'recipientName', 'recipientPhone', 'notes', 'items']);
+  onlyKeys(body, ['zoneId', 'deliveryAddress', 'deliveryDate', 'deliveryTime', 'recipientName', 'recipientPhone', 'notes', 'items', 'latitude', 'longitude']);
   const idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader);
   const deliveryDate = requireField(body, 'deliveryDate', 'La fecha de entrega');
   if (typeof deliveryDate !== 'string' || !isIsoDate(deliveryDate)) fail('La fecha de entrega debe tener formato AAAA-MM-DD y ser una fecha real.');
@@ -315,5 +340,6 @@ export function parsePlaceOrder(body: Record<string, unknown>, idempotencyKeyHea
     notes,
     items: parseItems(requireField(body, 'items', 'La lista de productos')),
     idempotencyKey,
+    ...parseCoordinates(body),
   };
 }

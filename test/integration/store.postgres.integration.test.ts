@@ -4,7 +4,7 @@ import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypt
 import { InMemoryFileStorage } from '../../src/modules/courier-applications/infrastructure/storage/in-memory-file-storage.js';
 import { ProductImageStorageAdapter } from '../../src/modules/store/infrastructure/storage/product-image-storage.js';
 import { defineStoreApiSuite, type StoreHarness, type StoreHarnessOptions } from '../support/store-api-suite.js';
-import { defineStoreFlowsSuite } from '../support/store-flows-suite.js';
+import { defineStoreCoordinatesSuite, defineStoreFlowsSuite } from '../support/store-flows-suite.js';
 import { realDatabase } from './database.fixture.js';
 import { deliveryDatabase, resetTestData, runAdminSql } from './sprint03/deliveries.fixture.js';
 
@@ -87,4 +87,5 @@ describeReal('Tienda y flujos · API HTTP contra PostgreSQL real (migraciones 01
 
   defineStoreApiSuite(buildHarness);
   describe('Flujos por rol', () => { defineStoreFlowsSuite(() => buildHarness()); });
+  describe('Mapa y coordenadas', () => { defineStoreCoordinatesSuite(() => buildHarness()); });
 });

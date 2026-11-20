@@ -18,6 +18,7 @@ export const requiredFiles = [
   'database/migrations/010_store.sql',
   'database/migrations/011_flows.sql',
   'database/migrations/012_consistency_definer.sql',
+  'database/migrations/013_coordinates.sql',
   'database/scripts/migrate.sh',
   'database/seeds/demo.sql',
   'database/tests/integration.sql',

@@ -11,6 +11,7 @@ import {
   isIsoDate,
   nullableText,
   onlyKeys,
+  parseCoordinates,
   parseIdempotencyKey,
   queryInteger,
   queryString,
@@ -92,7 +93,7 @@ function recipient(value: unknown): string | null {
 }
 
 export function parseNewAddress(body: Record<string, unknown>): NewAddress {
-  onlyKeys(body, ['label', 'zoneId', 'address', 'recipientName', 'recipientPhone', 'isDefault']);
+  onlyKeys(body, ['label', 'zoneId', 'address', 'recipientName', 'recipientPhone', 'isDefault', 'latitude', 'longitude']);
   return {
     label: checkedText(validateCategoryName(requireField(body, 'label', 'El nombre de la dirección'), 'El nombre de la dirección')),
     zoneId: validateUuid(requireField(body, 'zoneId', 'La zona'), 'zoneId'),
@@ -100,11 +101,12 @@ export function parseNewAddress(body: Record<string, unknown>): NewAddress {
     recipientName: 'recipientName' in body ? recipient(body['recipientName']) : null,
     recipientPhone: 'recipientPhone' in body ? phone(body['recipientPhone']) : null,
     isDefault: 'isDefault' in body ? boolean(body['isDefault'], 'isDefault') : false,
+    ...parseCoordinates(body),
   };
 }
 
 export function parseAddressPatch(body: Record<string, unknown>): { patch: AddressPatch; expectedVersion: number } {
-  onlyKeys(body, ['expectedVersion', 'label', 'zoneId', 'address', 'recipientName', 'recipientPhone', 'isDefault']);
+  onlyKeys(body, ['expectedVersion', 'label', 'zoneId', 'address', 'recipientName', 'recipientPhone', 'isDefault', 'latitude', 'longitude']);
   const version = expectedVersion(body);
   const patch: { -readonly [K in keyof AddressPatch]: AddressPatch[K] } = {};
   if ('label' in body) patch.label = checkedText(validateCategoryName(body['label'], 'El nombre de la dirección'));
@@ -113,6 +115,13 @@ export function parseAddressPatch(body: Record<string, unknown>): { patch: Addre
   if ('recipientName' in body) patch.recipientName = recipient(body['recipientName']);
   if ('recipientPhone' in body) patch.recipientPhone = phone(body['recipientPhone']);
   if ('isDefault' in body) patch.isDefault = boolean(body['isDefault'], 'isDefault');
+  if ('latitude' in body || 'longitude' in body) {
+    // Las dos coordenadas juntas: con valores cambian el pin; las dos en null lo quitan.
+    if (!('latitude' in body && 'longitude' in body)) fail('La latitud y la longitud deben enviarse juntas.');
+    const coords = parseCoordinates(body);
+    patch.latitude = coords.latitude;
+    patch.longitude = coords.longitude;
+  }
   if (Object.keys(patch).length === 0) fail('No hay cambios que aplicar.');
   return { patch, expectedVersion: version };
 }

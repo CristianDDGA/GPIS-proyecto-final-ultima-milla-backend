@@ -526,3 +526,113 @@ export function defineStoreFlowsSuite(create: () => Promise<StoreHarness> | Stor
     });
   });
 }
+
+// Las pruebas de coordenadas viven en su propia función para no alargar la suite principal.
+export function defineStoreCoordinatesSuite(create: () => Promise<StoreHarness> | StoreHarness): void {
+  let h: StoreHarness;
+  beforeEach(async () => { h = await create(); });
+
+  const api = () => request(h.app);
+  const admin = () => bearer(h.adminToken);
+  const customer = () => bearer(h.customerToken);
+  const driver = () => bearer(h.driverToken);
+
+  async function newProduct(): Promise<{ id: string }> {
+    const category = await api().post('/store/admin/categories').set(admin()).send({ name: `Mapa ${uuid().slice(0, 8)}` });
+    const product = await api().post('/store/admin/products').set(admin()).send({
+      sku: `M-${uuid().slice(0, 8).toUpperCase()}`, name: 'Producto con mapa 1', categoryId: category.body.id, priceCents: 1500, stock: 10,
+    });
+    expect(product.status).toBe(201);
+    return product.body as { id: string };
+  }
+
+  const orderBody = (productId: string, extra: Record<string, unknown> = {}) => ({
+    zoneId: h.zoneId, deliveryAddress: 'Av. Amazonas 123 y Naciones Unidas', deliveryDate: futureDate(3), deliveryTime: '10:00',
+    items: [{ productId, quantity: 1, unitPriceCents: 1500 }], ...extra,
+  });
+  const place = (body: object, key: string = uuid()) => api().post('/store/orders').set(customer()).set('Idempotency-Key', key).send(body);
+
+  describe('Mapa y coordenadas', () => {
+    it('un pedido con pin guarda el punto; sin pin sigue siendo válido y lo devuelve en null', async () => {
+      const product = await newProduct();
+      const manual = await place(orderBody(product.id));
+      expect(manual.status).toBe(201);
+      expect(manual.body).toMatchObject({ deliveryLatitude: null, deliveryLongitude: null });
+
+      const pinned = await place(orderBody(product.id, { deliveryTime: '11:00', latitude: -0.1807, longitude: -78.4678 }));
+      expect(pinned.status).toBe(201);
+      expect(pinned.body).toMatchObject({ deliveryLatitude: -0.1807, deliveryLongitude: -78.4678 });
+      const read = await api().get(`/store/orders/${pinned.body.id}`).set(customer());
+      expect(read.body).toMatchObject({ deliveryLatitude: -0.1807, deliveryLongitude: -78.4678 });
+      const list = await api().get('/store/orders').set(customer());
+      expect(list.body.items.some((order: { deliveryLatitude: number | null }) => order.deliveryLatitude === -0.1807)).toBe(true);
+    });
+
+    it('rechaza coordenadas incompletas, mal tipadas o fuera de Ecuador', async () => {
+      const product = await newProduct();
+      for (const extra of [
+        { latitude: -0.18 }, { longitude: -78.4 }, { latitude: '-0.18', longitude: '-78.4' },
+        { latitude: 40.4, longitude: -3.7 }, { latitude: -0.18, longitude: -60 }, { latitude: null, longitude: -78.4 },
+      ]) {
+        const response = await place(orderBody(product.id, extra));
+        expect(response.status).toBe(400);
+        expect(response.body.code).toBe('VALIDATION_ERROR');
+      }
+    });
+
+    it('la misma Idempotency-Key con otro pin no se acepta, y con el mismo pin repite el pedido', async () => {
+      const product = await newProduct();
+      const key = uuid();
+      const first = await place(orderBody(product.id, { latitude: -0.18, longitude: -78.47 }), key);
+      expect(first.status).toBe(201);
+      const same = await place(orderBody(product.id, { latitude: -0.18, longitude: -78.47 }), key);
+      expect(same.status).toBe(200);
+      expect(same.body.id).toBe(first.body.id);
+      const other = await place(orderBody(product.id, { latitude: -0.2, longitude: -78.5 }), key);
+      expect(other.status).toBe(422);
+      expect(other.body.code).toBe('IDEMPOTENCY_KEY_REUSED');
+    });
+
+    it('la libreta guarda, cambia y quita el pin de una dirección', async () => {
+      const base = { label: 'Casa', zoneId: h.zoneId, address: 'Av. 9 de Octubre 123 y Malecón' };
+      const manual = await api().post('/store/addresses').set(customer()).send(base);
+      expect(manual.status).toBe(201);
+      expect(manual.body).toMatchObject({ latitude: null, longitude: null });
+      const pinned = await api().post('/store/addresses').set(customer()).send({ ...base, label: 'Trabajo', latitude: -2.1894, longitude: -79.8891 });
+      expect(pinned.status).toBe(201);
+      expect(pinned.body).toMatchObject({ latitude: -2.1894, longitude: -79.8891 });
+
+      const moved = await api().patch(`/store/addresses/${manual.body.id}`).set(customer()).send({ expectedVersion: 1, latitude: -0.2, longitude: -78.5 });
+      expect(moved.status).toBe(200);
+      expect(moved.body).toMatchObject({ latitude: -0.2, longitude: -78.5 });
+      const half = await api().patch(`/store/addresses/${manual.body.id}`).set(customer()).send({ expectedVersion: moved.body.version, latitude: -0.3 });
+      expect(half.status).toBe(400);
+      const cleared = await api().patch(`/store/addresses/${manual.body.id}`).set(customer()).send({ expectedVersion: moved.body.version, latitude: null, longitude: null });
+      expect(cleared.status).toBe(200);
+      expect(cleared.body).toMatchObject({ latitude: null, longitude: null });
+      const outside = await api().post('/store/addresses').set(customer()).send({ ...base, label: 'Madrid', latitude: 40.4, longitude: -3.7 });
+      expect(outside.status).toBe(400);
+      const list = await api().get('/store/addresses').set(customer());
+      expect(list.body.items.find((item: { label: string }) => item.label === 'Trabajo')).toMatchObject({ latitude: -2.1894, longitude: -79.8891 });
+    });
+
+    it('el conductor y el administrador ven el destino en el mapa', async () => {
+      const product = await newProduct();
+      const pinned = await place(orderBody(product.id, { latitude: -0.1807, longitude: -78.4678 }));
+      const manual = await place(orderBody(product.id, { deliveryTime: '12:00' }));
+      await h.dispatch.assign([pinned.body.id, manual.body.id]);
+      const route = await api().get('/store/courier/orders').set(driver());
+      expect(route.status).toBe(200);
+      const byId = new Map<string, { deliveryLatitude: number | null; deliveryLongitude: number | null }>(
+        route.body.items.map((item: { orderId: string; deliveryLatitude: number | null; deliveryLongitude: number | null }) => [item.orderId, item]),
+      );
+      expect(byId.get(pinned.body.id)).toMatchObject({ deliveryLatitude: -0.1807, deliveryLongitude: -78.4678 });
+      expect(byId.get(manual.body.id)).toMatchObject({ deliveryLatitude: null, deliveryLongitude: null });
+
+      const board = await api().get('/store/admin/orders').set(admin());
+      expect(board.status).toBe(200);
+      const found = board.body.items.find((order: { id: string }) => order.id === pinned.body.id);
+      expect(found).toMatchObject({ deliveryLatitude: -0.1807, deliveryLongitude: -78.4678 });
+    });
+  });
+}
