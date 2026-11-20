@@ -565,7 +565,7 @@ export function defineStoreCoordinatesSuite(create: () => Promise<StoreHarness> 
       const read = await api().get(`/store/orders/${pinned.body.id}`).set(customer());
       expect(read.body).toMatchObject({ deliveryLatitude: -0.1807, deliveryLongitude: -78.4678 });
       const list = await api().get('/store/orders').set(customer());
-      expect(list.body.items.some((order: { deliveryLatitude: number | null }) => order.deliveryLatitude === -0.1807)).toBe(true);
+      expect(list.body.items.some((order: { deliveryLatitude: number | null }) => order.deliveryLatitude !== null && Math.abs(order.deliveryLatitude + 0.1807) < 1e-9)).toBe(true);
     });
 
     it('rechaza coordenadas incompletas, mal tipadas o fuera de Ecuador', async () => {

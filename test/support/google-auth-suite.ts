@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { AuthError } from '../../src/modules/auth/domain/auth.errors.js';
 import type { GoogleIdentity, GoogleTokenVerifier } from '../../src/modules/auth/application/ports/google-token-verifier.port.js';
@@ -38,7 +39,9 @@ export interface GoogleHarness {
 
 export interface GoogleHarnessOptions { readonly googleEnabled?: boolean }
 
-const PASSWORD = 'ClaveSegura2026';
+// Claves de prueba generadas en cada ejecución (nada escrito en el código). Cumplen la política: largas, con letras, números y guiones.
+const PASSWORD = `Cl-${randomUUID()}-Zx9`;
+const ADMIN_PASSWORD = `Ad-${randomUUID()}-Qw7`;
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
 
 export function defineGoogleLoginSuite(create: (options?: GoogleHarnessOptions) => Promise<GoogleHarness> | GoogleHarness): void {
@@ -58,7 +61,7 @@ export function defineGoogleLoginSuite(create: (options?: GoogleHarnessOptions) 
   }
 
   const createByAdmin = (email: string, role: 'admin' | 'repartidor') =>
-    api().post('/auth/users').set(bearer(h.adminToken)).send({ email, password: 'Torre-Azul-Cobre-2026', role, displayName: 'Persona Prueba' });
+    api().post('/auth/users').set(bearer(h.adminToken)).send({ email, password: ADMIN_PASSWORD, role, displayName: 'Persona Prueba' });
 
   describe('Inicio de sesión con Google', () => {
     it('sin Client ID configurado responde 503 y no rompe nada', async () => {
