@@ -14,6 +14,9 @@ export type AuthErrorCode =
   | 'LAST_ADMIN'
   | 'USER_HAS_ACTIVE_ROUTE'
   | 'CANNOT_DEACTIVATE_SELF'
+  | 'INVALID_GOOGLE_TOKEN'
+  | 'GOOGLE_NOT_ENABLED'
+  | 'GOOGLE_NOT_ALLOWED'
   | 'PERSISTENCE_UNAVAILABLE';
 
 const DEFAULT_MESSAGES: Record<AuthErrorCode, string> = {
@@ -32,6 +35,9 @@ const DEFAULT_MESSAGES: Record<AuthErrorCode, string> = {
   LAST_ADMIN: 'No se puede desactivar al último administrador activo.',
   USER_HAS_ACTIVE_ROUTE: 'El repartidor tiene una ruta asignada o en curso. Reasigna o cierra la ruta antes de desactivarlo.',
   CANNOT_DEACTIVATE_SELF: 'No puedes desactivar tu propia cuenta.',
+  INVALID_GOOGLE_TOKEN: 'No se pudo comprobar el inicio de sesión con Google. Inténtalo de nuevo.',
+  GOOGLE_NOT_ENABLED: 'El inicio de sesión con Google no está habilitado.',
+  GOOGLE_NOT_ALLOWED: 'Esta cuenta no puede entrar con Google.',
   PERSISTENCE_UNAVAILABLE: 'El servicio de autenticación no está disponible temporalmente.',
 };
 

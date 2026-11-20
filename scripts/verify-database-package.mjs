@@ -18,6 +18,8 @@ export const requiredFiles = [
   'database/migrations/010_store.sql',
   'database/migrations/011_flows.sql',
   'database/migrations/012_consistency_definer.sql',
+  'database/migrations/013_coordinates.sql',
+  'database/migrations/014_google_login.sql',
   'database/scripts/migrate.sh',
   'database/seeds/demo.sql',
   'database/tests/integration.sql',
@@ -25,6 +27,7 @@ export const requiredFiles = [
   'database/tests/store.sql',
   'database/tests/store-race.sh',
   'database/tests/flows.sql',
+  'database/tests/google.sql',
   'database/tests/flows-race.sh',
 ];
 

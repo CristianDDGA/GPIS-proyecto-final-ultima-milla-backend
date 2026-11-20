@@ -30,3 +30,12 @@ test('JWT_SECRET: rechaza el secreto público que estuvo en el código y los val
 test('JWT_SECRET: el mensaje de error explica cómo generar uno', () => {
   assert.throws(() => loadConfig(env({ JWT_SECRET: undefined })), /randomBytes/);
 });
+
+test('GOOGLE_CLIENT_ID: es opcional, se acepta con su formato y se rechaza si no lo tiene', () => {
+  assert.equal(loadConfig(env()).googleClientId, undefined);
+  assert.equal(loadConfig(env({ GOOGLE_CLIENT_ID: '   ' })).googleClientId, undefined);
+  const id = '1234567890-abcdef123.apps.googleusercontent.com';
+  assert.equal(loadConfig(env({ GOOGLE_CLIENT_ID: ` ${id} ` })).googleClientId, id);
+  assert.throws(() => loadConfig(env({ GOOGLE_CLIENT_ID: 'GOCSPX-un-secreto-de-cliente' })), /GOOGLE_CLIENT_ID/);
+  assert.throws(() => loadConfig(env({ GOOGLE_CLIENT_ID: 'https://evil.example.com' })), /GOOGLE_CLIENT_ID/);
+});

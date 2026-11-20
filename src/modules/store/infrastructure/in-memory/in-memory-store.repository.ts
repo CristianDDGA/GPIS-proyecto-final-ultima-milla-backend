@@ -93,6 +93,8 @@ interface StoredAddress {
   isDefault: boolean;
   version: number;
   touched: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface StoredNotification {
@@ -137,6 +139,8 @@ interface StoredOrder {
   totalCents: number;
   lines: StoreOrderLine[];
   createdAt: Date;
+  latitude: number | null;
+  longitude: number | null;
   status: OrderStatus;
   version: number;
   stop: StoredStop | null;
@@ -411,6 +415,7 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
       const hash = JSON.stringify({
         zone: command.zoneId, address: command.deliveryAddress, date: command.deliveryDate, time: command.deliveryTime,
         recipient: command.recipientName, phone: command.recipientPhone, notes: command.notes, items,
+        lat: command.latitude, lng: command.longitude,
       });
       const requestKey = `${command.customerId}:${command.idempotencyKey}`;
       const previous = this.requests.get(requestKey);
@@ -452,6 +457,7 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
         id: randomUUID(), customerId: command.customerId, zoneId: command.zoneId, deliveryAddress: command.deliveryAddress,
         deliveryDate: command.deliveryDate, deliveryTime: command.deliveryTime, recipientName: command.recipientName,
         recipientPhone: command.recipientPhone, notes: command.notes, totalCents: 0, lines: [], createdAt: this.now(),
+        latitude: command.latitude, longitude: command.longitude,
         status: 'pendiente', version: 1, stop: null, failures: [], collection: null, cancellation: null,
       };
       for (const item of items) {
@@ -477,6 +483,7 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
       id: order.id, status: order.status, zoneId: order.zoneId, deliveryAddress: order.deliveryAddress,
       deliveryDate: order.deliveryDate, deliveryTime: order.deliveryTime, totalCents: order.totalCents,
       itemsCount: order.lines.length, paymentMethod: 'contra_entrega', createdAt: order.createdAt.toISOString(),
+      deliveryLatitude: order.latitude, deliveryLongitude: order.longitude,
     };
   }
 
@@ -599,7 +606,7 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
         routeStatus: order.stop?.routeStatus ?? '', position: order.stop?.position ?? 0, deliveryAddress: order.deliveryAddress,
         deliveryDate: order.deliveryDate, deliveryTime: order.deliveryTime, recipientName: order.recipientName,
         recipientPhone: order.recipientPhone, notes: order.notes, isStoreOrder: true, totalCents: order.totalCents,
-        failedAttempts: order.failures.length,
+        failedAttempts: order.failures.length, deliveryLatitude: order.latitude, deliveryLongitude: order.longitude,
         items: order.lines.map((line) => ({ name: line.name, quantity: line.quantity, unitPriceCents: line.unitPriceCents, lineTotalCents: line.lineTotalCents })),
       }));
   }
@@ -699,6 +706,7 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
     return {
       id: row.id, label: row.label, zoneId: row.zoneId, address: row.address, recipientName: row.recipientName,
       recipientPhone: row.recipientPhone, isDefault: row.isDefault, version: row.version,
+      latitude: row.latitude, longitude: row.longitude,
     };
   }
 
@@ -724,6 +732,7 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
       const row: StoredAddress = {
         id: randomUUID(), userId, label: input.label, zoneId: input.zoneId, address: input.address, recipientName: input.recipientName,
         recipientPhone: input.recipientPhone, isDefault: makeDefault, version: 1, touched: ++this.touchCounter,
+        latitude: input.latitude, longitude: input.longitude,
       };
       this.addresses.push(row);
       return this.addressView(row);
@@ -751,6 +760,8 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
       if (patch.recipientName !== undefined) row.recipientName = patch.recipientName;
       if (patch.recipientPhone !== undefined) row.recipientPhone = patch.recipientPhone;
       if (patch.isDefault !== undefined) row.isDefault = patch.isDefault;
+      if (patch.latitude !== undefined) row.latitude = patch.latitude;
+      if (patch.longitude !== undefined) row.longitude = patch.longitude;
       row.version += 1;
       row.touched = ++this.touchCounter;
       return this.addressView(row);

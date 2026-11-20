@@ -2,6 +2,7 @@ import type { ErrorRequestHandler, Router } from 'express';
 import { createAuthUseCases, type AuthUseCases } from './application/auth.use-cases.js';
 import type { AuthRepository } from './application/ports/auth.repository.port.js';
 import type { EmailSender } from './application/ports/email-sender.port.js';
+import type { GoogleTokenVerifier } from './application/ports/google-token-verifier.port.js';
 import type { SecurityLog } from './application/ports/security-log.port.js';
 import type { TokenRevocationStore } from './application/ports/token-revocation.port.js';
 import type { TokenService } from './application/ports/token-service.port.js';
@@ -27,6 +28,8 @@ export interface AuthModuleDependencies {
   readonly securityLog?: SecurityLog;
   /** Bloqueo por cuenta tras fallos de login. Por defecto: 5 fallos en 15 min bloquean 5 min. */
   readonly loginLockout?: LoginLockoutOptions;
+  /** Sin valor, POST /auth/google responde 503 (no habilitado). */
+  readonly googleVerifier?: GoogleTokenVerifier;
 }
 
 const DEFAULT_LOGIN_LOCKOUT: LoginLockoutOptions = { maxFailures: 5, lockSeconds: 300 };
@@ -56,6 +59,7 @@ export function createAuthModule(dependencies: AuthModuleDependencies): AuthModu
     {
       emailSender: dependencies.emailSender ?? new ConsoleEmailSender(),
       ...(dependencies.securityLog ? { securityLog: dependencies.securityLog } : {}),
+      ...(dependencies.googleVerifier ? { googleVerifier: dependencies.googleVerifier } : {}),
       loginAttempts: new InMemoryLoginAttemptStore(dependencies.loginLockout ?? DEFAULT_LOGIN_LOCKOUT),
       codeKey: deriveCodeKey(dependencies.jwtSecret),
       emailVerificationRequired: dependencies.emailVerificationRequired ?? true,

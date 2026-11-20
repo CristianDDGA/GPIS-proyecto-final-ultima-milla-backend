@@ -16,6 +16,7 @@ import { buildCodeEmail } from './email-templates.js';
 import { generateOneTimeCode, hashOneTimeCode } from '../infrastructure/crypto/one-time-code.js';
 import type { AuthRepository, CodeCheckResult, CodePurpose, UserListFilter } from './ports/auth.repository.port.js';
 import type { EmailSender } from './ports/email-sender.port.js';
+import type { GoogleTokenVerifier } from './ports/google-token-verifier.port.js';
 import type { LoginAttemptStore } from './ports/login-attempt.port.js';
 import type { PasswordHasher } from './ports/password-hasher.port.js';
 import { maskEmail, type SecurityEvent, type SecurityLog } from './ports/security-log.port.js';
@@ -42,6 +43,8 @@ export interface AuthUseCasesOptions {
   readonly log?: (message: string) => void;
   /** Registro de eventos de seguridad (inicios de sesión, cambios de clave, altas y bajas). */
   readonly securityLog?: SecurityLog;
+  /** Sin valor, el inicio de sesión con Google está deshabilitado (GOOGLE_NOT_ENABLED). */
+  readonly googleVerifier?: GoogleTokenVerifier;
 }
 
 /** Quién ejecuta una acción administrativa. */
@@ -72,6 +75,8 @@ export interface AuthUseCases {
     input: { email: unknown; password: unknown; role: unknown; displayName?: unknown },
   ): Promise<AuthUser>;
   login(input: { email: unknown; password: unknown }): Promise<AuthSessionResult>;
+  /** Entra (o crea/vincula una cuenta de cliente) con un ID token de Google. */
+  loginWithGoogle(input: { idToken: unknown }): Promise<AuthSessionResult>;
   verifyEmail(input: { email: unknown; code: unknown }): Promise<AuthSessionResult>;
   resendVerification(input: { email: unknown }): Promise<void>;
   forgotPassword(input: { email: unknown }): Promise<void>;
@@ -278,6 +283,71 @@ export function createAuthUseCases(
       const { passwordHash: _passwordHash, emailVerifiedVia: _via, ...user } = record;
       audit({ type: 'login_success', email: maskEmail(email), userId: record.id });
       return issueSession(user);
+    },
+
+    async loginWithGoogle(input) {
+      const verifier = options.googleVerifier;
+      if (!verifier) throw new AuthError('GOOGLE_NOT_ENABLED');
+      if (typeof input.idToken !== 'string' || input.idToken.trim() === '') {
+        throw new AuthError('VALIDATION_ERROR', 'El token de Google es obligatorio.');
+      }
+      const identity = await verifier.verify(input.idToken.trim());
+      if (!identity.emailVerified) throw new AuthError('GOOGLE_NOT_ALLOWED', 'Google no confirma el correo de esa cuenta.');
+      let email: string;
+      try {
+        email = validateNewEmail(identity.email);
+      } catch {
+        throw new AuthError('GOOGLE_NOT_ALLOWED', 'El correo de esa cuenta de Google no es admitido.');
+      }
+      const sessionFor = async (userId: string, detail: string): Promise<AuthSessionResult> => {
+        const user = await repository.findById(userId);
+        if (!user) throw new AuthError('PERSISTENCE_UNAVAILABLE');
+        if (!user.isActive) throw new AuthError('USER_INACTIVE');
+        audit({ type: 'login_success', email: maskEmail(email), userId: user.id, detail });
+        return issueSession(user);
+      };
+
+      // 1) Cuenta ya vinculada a esta identidad de Google: entra con el rol que tenga hoy (un cliente aprobado como
+      //    conductor conserva su vinculación). Un cambio de correo en Google no la afecta: se identifica por "sub".
+      const linked = await repository.findByGoogleSub(identity.sub);
+      if (linked) return sessionFor(linked.id, 'google');
+
+      // 2) Ya existe una cuenta con ese correo: solo se vincula si es un cliente que confirmó su correo por código.
+      const existing = await repository.findByEmail(email);
+      if (existing) {
+        const result = await repository.linkGoogleAccount(existing.id, identity.sub);
+        if (result !== 'OK') {
+          audit({ type: 'login_failed', email: maskEmail(email), userId: existing.id, detail: `google_${result.toLowerCase()}` });
+          throw new AuthError(
+            'GOOGLE_NOT_ALLOWED',
+            'Esta cuenta no puede entrar con Google. Usa tu correo y contraseña (los administradores y conductores no usan Google).',
+          );
+        }
+        audit({ type: 'google_linked', email: maskEmail(email), userId: existing.id });
+        return sessionFor(existing.id, 'google_linked');
+      }
+
+      // 3) Cuenta nueva: cliente verificado por Google y sin contraseña.
+      const displayName = ((): string | null => {
+        try {
+          return validateNewDisplayName(identity.name ?? undefined);
+        } catch {
+          return null; // el nombre de Google puede traer caracteres que no admitimos: se deja vacío
+        }
+      })();
+      try {
+        const user = await repository.registerGoogleUser({ sub: identity.sub, email, displayName });
+        audit({ type: 'register', email: maskEmail(email), userId: user.id, detail: 'google' });
+        return sessionFor(user.id, 'google_new');
+      } catch (error: unknown) {
+        // Dos primeras entradas a la vez: la otra ya creó la cuenta; se reutiliza.
+        if (error instanceof AuthError && error.code === 'EMAIL_ALREADY_EXISTS') {
+          const winner = await repository.findByGoogleSub(identity.sub);
+          if (winner) return sessionFor(winner.id, 'google');
+          throw new AuthError('GOOGLE_NOT_ALLOWED');
+        }
+        throw error;
+      }
     },
 
     async verifyEmail(input) {

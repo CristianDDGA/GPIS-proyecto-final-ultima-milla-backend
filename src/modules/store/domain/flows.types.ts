@@ -52,6 +52,9 @@ export interface CourierOrder {
   readonly totalCents: number | null;
   readonly items: readonly CourierOrderLine[];
   readonly failedAttempts: number;
+  /** Destino en el mapa (nulo si la dirección fue manual). */
+  readonly deliveryLatitude: number | null;
+  readonly deliveryLongitude: number | null;
 }
 
 export interface DeliveryOutcome {
@@ -90,6 +93,9 @@ export interface Address {
   readonly recipientPhone: string | null;
   readonly isDefault: boolean;
   readonly version: number;
+  /** Pin del mapa; nulo si la dirección se escribió a mano. */
+  readonly latitude: number | null;
+  readonly longitude: number | null;
 }
 
 export interface NewAddress {
@@ -99,6 +105,8 @@ export interface NewAddress {
   readonly recipientName: string | null;
   readonly recipientPhone: string | null;
   readonly isDefault: boolean;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
 }
 
 export interface AddressPatch {
@@ -108,6 +116,9 @@ export interface AddressPatch {
   readonly recipientName?: string | null;
   readonly recipientPhone?: string | null;
   readonly isDefault?: boolean;
+  /** Las dos juntas: valores para poner o cambiar el pin, o ambas null para quitarlo. */
+  readonly latitude?: number | null;
+  readonly longitude?: number | null;
 }
 
 export interface AdminOrderFilter {

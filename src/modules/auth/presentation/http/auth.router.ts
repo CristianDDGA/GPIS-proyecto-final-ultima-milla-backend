@@ -19,6 +19,9 @@ const STATUS_BY_CODE: Record<AuthErrorCode, number> = {
   LAST_ADMIN: 409,
   USER_HAS_ACTIVE_ROUTE: 409,
   CANNOT_DEACTIVATE_SELF: 409,
+  INVALID_GOOGLE_TOKEN: 401,
+  GOOGLE_NOT_ENABLED: 503,
+  GOOGLE_NOT_ALLOWED: 403,
   EMAIL_ALREADY_EXISTS: 409,
   PERSISTENCE_UNAVAILABLE: 503,
 };
@@ -117,6 +120,16 @@ export function createAuthRouter(
         email: input['email'],
         password: input['password'],
       });
+      response.status(200).json(session);
+    }),
+  );
+
+  // Inicio de sesión con Google: el navegador entrega un ID token y el backend lo verifica (firma, emisor y audiencia).
+  router.post(
+    '/google',
+    route(async (request, response) => {
+      const input = bodyObject(request);
+      const session = await useCases.loginWithGoogle({ idToken: input['idToken'] });
       response.status(200).json(session);
     }),
   );

@@ -66,6 +66,8 @@ interface OrderRow {
   readonly items_count: number;
   readonly payment_method: string;
   readonly created_at: Date;
+  readonly delivery_latitude: number | null;
+  readonly delivery_longitude: number | null;
 }
 
 interface LineRow {
@@ -117,6 +119,8 @@ function toSummary(row: OrderRow): StoreOrderSummary {
     itemsCount: row.items_count,
     paymentMethod: row.payment_method,
     createdAt: iso(row.created_at),
+    deliveryLatitude: row.delivery_latitude,
+    deliveryLongitude: row.delivery_longitude,
   };
 }
 
@@ -386,7 +390,8 @@ export class PrismaStoreRepository implements CatalogRepository, StoreOrderRepos
             ${command.customerId}::uuid, ${command.zoneId}::uuid, ${command.deliveryAddress}::text,
             ${command.deliveryDate}::date, ${command.deliveryTime}::time,
             ${command.recipientName}::text, ${command.recipientPhone}::text, ${command.notes}::text,
-            ${items}::jsonb, ${command.idempotencyKey}::uuid) AS result`;
+            ${items}::jsonb, ${command.idempotencyKey}::uuid,
+            ${command.latitude}::double precision, ${command.longitude}::double precision) AS result`;
         return parsePlaceResult(rows[0]?.result);
       }),
     );
@@ -399,7 +404,8 @@ export class PrismaStoreRepository implements CatalogRepository, StoreOrderRepos
       const rows = await this.prisma.$queryRaw<OrderRow[]>`
         SELECT o.id, o.status, o.zone_id, s.customer_user_id, o.delivery_address,
                to_char(o.delivery_date, 'YYYY-MM-DD') AS delivery_date, left(o.delivery_time::text, 5) AS delivery_time,
-               o.recipient_name, o.recipient_phone, o.notes, s.total_cents, s.items_count, s.payment_method, s.created_at
+               o.recipient_name, o.recipient_phone, o.notes, s.total_cents, s.items_count, s.payment_method, s.created_at,
+               s.delivery_latitude, s.delivery_longitude
           FROM logistica.store_orders s JOIN logistica.orders o ON o.id = s.order_id
          WHERE (${customerId}::uuid IS NULL OR s.customer_user_id = ${customerId}::uuid)
          ORDER BY s.created_at DESC, o.id DESC
@@ -417,7 +423,8 @@ export class PrismaStoreRepository implements CatalogRepository, StoreOrderRepos
       const rows = await this.prisma.$queryRaw<OrderRow[]>`
         SELECT o.id, o.status, o.zone_id, s.customer_user_id, o.delivery_address,
                to_char(o.delivery_date, 'YYYY-MM-DD') AS delivery_date, left(o.delivery_time::text, 5) AS delivery_time,
-               o.recipient_name, o.recipient_phone, o.notes, s.total_cents, s.items_count, s.payment_method, s.created_at
+               o.recipient_name, o.recipient_phone, o.notes, s.total_cents, s.items_count, s.payment_method, s.created_at,
+               s.delivery_latitude, s.delivery_longitude
           FROM logistica.store_orders s JOIN logistica.orders o ON o.id = s.order_id
          WHERE o.id = ${id}::uuid AND (${customerId}::uuid IS NULL OR s.customer_user_id = ${customerId}::uuid)`;
       const row = rows[0];

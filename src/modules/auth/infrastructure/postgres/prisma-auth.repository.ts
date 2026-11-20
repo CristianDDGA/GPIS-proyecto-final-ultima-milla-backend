@@ -14,6 +14,7 @@ import type {
   CodeCheckResult,
   CodeIssueResult,
   CodePurpose,
+  GoogleLinkResult,
   RegisterUserInput,
   SetActiveResult,
   UserListFilter,
@@ -102,6 +103,56 @@ export class PrismaAuthRepository implements AuthRepository {
       const row = rows[0];
       return row ? mapRecord(row) : null;
     } catch {
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
+  }
+
+  async findByGoogleSub(sub: string): Promise<AuthUserRecord | null> {
+    try {
+      const rows = await this.database.$queryRaw<UserRow[]>`
+          SELECT u.id, u.auth_subject, u.email, u.password_hash, u.role, u.display_name, u.is_active,
+                 u.email_verified_via, c.id AS courier_id
+          FROM logistica.app_users u
+          LEFT JOIN logistica.couriers c ON c.user_id = u.id
+          WHERE u.google_sub = ${sub}
+          LIMIT 1
+        `;
+      const row = rows[0];
+      return row ? mapRecord(row) : null;
+    } catch {
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
+  }
+
+  async registerGoogleUser(input: { sub: string; email: string; displayName: string | null }): Promise<AuthUser> {
+    try {
+      const rows = await this.database.$queryRaw<Array<{ id: string }>>`
+        SELECT logistica.register_google_user(${input.sub}::text, ${input.email}::text, ${input.displayName}::text) AS id
+      `;
+      const id = rows[0]?.id;
+      const user = id ? await this.findById(id) : null;
+      if (!user) throw new AuthError('PERSISTENCE_UNAVAILABLE');
+      return user;
+    } catch (error: unknown) {
+      if (error instanceof AuthError) throw error;
+      const sqlState = getSqlState(error);
+      if (sqlState === '23505' || sqlState === 'P2002') throw new AuthError('EMAIL_ALREADY_EXISTS');
+      if (sqlState === '22023') throw new AuthError('VALIDATION_ERROR');
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
+  }
+
+  async linkGoogleAccount(userId: string, sub: string): Promise<GoogleLinkResult> {
+    try {
+      const rows = await this.database.$queryRaw<Array<{ result: string }>>`
+        SELECT logistica.link_google_account(${userId}::uuid, ${sub}::text) AS result
+      `;
+      const result = rows[0]?.result;
+      if (result === 'OK' || result === 'SUB_IN_USE') return result;
+      return 'NOT_ELIGIBLE';
+    } catch (error: unknown) {
+      // Dos cuentas intentando vincular la misma identidad a la vez: el índice único rechaza la segunda.
+      if (getSqlState(error) === '23505') return 'SUB_IN_USE';
       throw new AuthError('PERSISTENCE_UNAVAILABLE');
     }
   }

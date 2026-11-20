@@ -230,6 +230,54 @@ en modo demo (`EMAIL_VERIFICATION_REQUIRED=false`) o con correos ficticios el av
   (`POST /orders`) se entregan igual que antes y no tienen cobro.
 - Cualquier ruta nueva de `/store` se niega por defecto a quien no tenga el rol correspondiente.
 
+## Mapa y coordenadas (migración 013)
+
+La dirección de entrega se puede elegir **en un mapa (pin)** o **escribir a mano**. El backend solo guarda el punto; el mapa lo dibuja el
+frontend. Las coordenadas son **opcionales**: un pedido o una dirección sin ellas sigue siendo válido.
+
+### Qué enviar
+
+| Dónde | Campos nuevos | Notas |
+| --- | --- | --- |
+| `POST /store/orders` | `latitude`, `longitude` (números) | Junto a `deliveryAddress`. En modo manual se omiten (o `null`). |
+| `POST /store/addresses` | `latitude`, `longitude` | Igual. |
+| `PATCH /store/addresses/:id` | `latitude`, `longitude` | Las dos juntas: con valores cambian el pin; las dos en `null` lo quitan. Con una sola, `400`. |
+
+Reglas (`400 VALIDATION_ERROR` si no se cumplen): las dos coordenadas juntas o ninguna; deben ser números; deben caer dentro de Ecuador
+(latitud −5.1 a 1.5 y longitud −92.5 a −75.0, incluye Galápagos), para atrapar pines mal puestos. La misma `Idempotency-Key` con otro pin
+responde `422 IDEMPOTENCY_KEY_REUSED`, igual que con otro producto o dirección.
+
+### Qué se recibe
+
+- Pedidos (`GET /store/orders`, `/store/orders/:id`, `/store/admin/orders`): `deliveryLatitude` y `deliveryLongitude` (`null` si fue manual).
+- Direcciones: `latitude` y `longitude`.
+- Conductor (`GET /store/courier/orders`): `deliveryLatitude` y `deliveryLongitude` de cada parada, para mostrar el destino en su mapa o abrir la
+  navegación: `https://www.openstreetmap.org/directions?to=<lat>,<lng>` o `https://www.google.com/maps/dir/?api=1&destination=<lat>,<lng>`.
+
+### Cómo dibujar el mapa (proveedor gratuito: OpenStreetMap)
+
+No se necesita clave ni tarjeta. Ejemplo mínimo con Leaflet (web):
+
+```js
+const map = L.map('mapa').setView([-0.1807, -78.4678], 13);               // Quito
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+const pin = L.marker([-0.1807, -78.4678], { draggable: true }).addTo(map);
+pin.on('dragend', async () => {
+  const { lat, lng } = pin.getLatLng();
+  // Dirección legible a partir del pin (geocodificación inversa de Nominatim):
+  const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`);
+  const place = await r.json();     // place.display_name → rellena el campo de dirección
+  // Al comprar: { deliveryAddress, latitude: lat, longitude: lng, ... }
+});
+```
+
+- **Buscar escribiendo:** `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=ec&q=<texto>`. Política de uso de Nominatim: máximo **1 petición por segundo**,
+  con espera de ~500 ms entre teclas, sin autocompletar a cada letra y con una cabecera `Referer` o `User-Agent` propia. Para producción con mucho tráfico conviene un
+  geocodificador propio o de pago; el backend no cambia, porque solo guarda `latitude` y `longitude`.
+- **Texto de la dirección:** `deliveryAddress` sigue validándose con la lista blanca de caracteres (letras, números y puntuación básica, sin emojis). El
+  texto que devuelve Nominatim (`display_name`) puede traer caracteres que no pasen; límpialo antes de enviarlo o deja que la persona lo edite.
+- **Modo manual:** si la persona rellena el formulario sin mapa, se envía lo mismo sin `latitude`/`longitude`.
+
 ## Alcance actual y lo que no incluye
 
 Incluido: catálogo, búsqueda y filtros, ofertas, administración con historial, stock con libro de movimientos,

@@ -60,9 +60,9 @@ export function buildNotificationEmail(notification: PendingNotification, order:
   return { to: notification.email, subject: rendered.subject, text, html };
 }
 
-/** Solo las cuentas que confirmaron su correo con un código reciben avisos; el modo demo no envía nada. */
+/** Reciben avisos las cuentas que probaron su correo (con un código o entrando con Google); el modo demo no envía nada. */
 export function canEmail(notification: PendingNotification): boolean {
-  return notification.email !== null && notification.emailVerifiedVia === 'code';
+  return notification.email !== null && (notification.emailVerifiedVia === 'code' || notification.emailVerifiedVia === 'google');
 }
 
 export interface NotificationWorkerOptions {

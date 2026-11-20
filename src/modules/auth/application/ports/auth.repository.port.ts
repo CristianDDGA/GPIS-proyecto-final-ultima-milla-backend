@@ -18,6 +18,8 @@ export interface RegisterUserInput {
 export type CodePurpose = 'verify_email' | 'reset_password';
 export type CodeCheckResult = 'OK' | 'INVALID' | 'EXPIRED' | 'LOCKED';
 export type CodeIssueResult = 'OK' | 'COOLDOWN';
+/** 'NOT_ELIGIBLE': no es cliente, está inactiva o su correo no se confirmó por código. 'SUB_IN_USE': esa cuenta de Google ya está vinculada a otra. */
+export type GoogleLinkResult = 'OK' | 'NOT_ELIGIBLE' | 'SUB_IN_USE';
 export type SetActiveResult = 'OK' | 'UNCHANGED' | 'NOT_FOUND' | 'LAST_ADMIN' | 'HAS_ACTIVE_ROUTE';
 
 export interface UserListFilter {
@@ -35,6 +37,12 @@ export interface AuthRepository {
   /** Como findById, pero incluye el hash de la clave (solo para verificar la clave actual). */
   findRecordById(id: string): Promise<AuthUserRecord | null>;
   registerUser(input: RegisterUserInput): Promise<AuthUser>;
+  /** Cuenta ya vinculada a esa identidad de Google (claim sub), de cualquier rol. */
+  findByGoogleSub(sub: string): Promise<AuthUserRecord | null>;
+  /** Crea un cliente verificado por Google y sin contraseña. EMAIL_ALREADY_EXISTS si el correo o la identidad ya existen. */
+  registerGoogleUser(input: { sub: string; email: string; displayName: string | null }): Promise<AuthUser>;
+  /** Vincula Google a un cliente cuyo correo se confirmó por código. */
+  linkGoogleAccount(userId: string, sub: string): Promise<GoogleLinkResult>;
   /** Guarda el hash del código; 'COOLDOWN' si se emitió otro hace menos de 60 s. */
   issueEmailCode(userId: string, purpose: CodePurpose, codeHash: string, ttlSeconds: number): Promise<CodeIssueResult>;
   /** Consume el código de verificación y, si es correcto, marca el correo como verificado. */

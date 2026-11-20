@@ -32,17 +32,20 @@ const iso = (value: Date): string => value.toISOString();
 interface AddressRow {
   readonly id: string; readonly label: string; readonly zone_id: string; readonly address: string;
   readonly recipient_name: string | null; readonly recipient_phone: string | null; readonly is_default: boolean; readonly version: bigint | number;
+  readonly latitude: number | null; readonly longitude: number | null;
 }
 
 const toAddress = (row: AddressRow): Address => ({
   id: row.id, label: row.label, zoneId: row.zone_id, address: row.address, recipientName: row.recipient_name,
   recipientPhone: row.recipient_phone, isDefault: row.is_default, version: num(row.version),
+  latitude: row.latitude, longitude: row.longitude,
 });
 
 interface OrderHeadRow {
   readonly id: string; readonly status: string; readonly zone_id: string; readonly customer_user_id: string; readonly delivery_address: string;
   readonly delivery_date: string; readonly delivery_time: string; readonly recipient_name: string | null; readonly recipient_phone: string | null;
   readonly notes: string | null; readonly total_cents: bigint | number; readonly items_count: number; readonly payment_method: string; readonly created_at: Date;
+  readonly delivery_latitude: number | null; readonly delivery_longitude: number | null;
 }
 
 interface LineRow {
@@ -94,11 +97,13 @@ export class PrismaFlowsRepository implements FlowsRepository {
         order_id: string; version: bigint | number; status: string; route_id: string; route_status: string; position: bigint | number;
         delivery_address: string; delivery_date: string; delivery_time: string; recipient_name: string | null; recipient_phone: string | null;
         notes: string | null; is_store_order: boolean; total_cents: bigint | number | null; failed_attempts: number;
+        delivery_latitude: number | null; delivery_longitude: number | null;
         items: Array<{ name: string; quantity: number; unitPriceCents: number; lineTotalCents: number | string }>;
       }>>`
         SELECT o.id AS order_id, o.version, o.status, r.id AS route_id, r.status AS route_status, s.position,
                o.delivery_address, to_char(o.delivery_date, 'YYYY-MM-DD') AS delivery_date, left(o.delivery_time::text, 5) AS delivery_time,
                o.recipient_name, o.recipient_phone, o.notes, (so.order_id IS NOT NULL) AS is_store_order, so.total_cents,
+               so.delivery_latitude, so.delivery_longitude,
                (SELECT count(*) FROM logistica.delivery_failures f WHERE f.order_id = o.id)::integer AS failed_attempts,
                coalesce((SELECT json_agg(json_build_object('name', i.product_name, 'quantity', i.quantity,
                                                            'unitPriceCents', i.unit_price_cents, 'lineTotalCents', i.line_total_cents)
@@ -116,6 +121,7 @@ export class PrismaFlowsRepository implements FlowsRepository {
         position: num(row.position), deliveryAddress: row.delivery_address, deliveryDate: row.delivery_date, deliveryTime: row.delivery_time,
         recipientName: row.recipient_name, recipientPhone: row.recipient_phone, notes: row.notes, isStoreOrder: row.is_store_order,
         totalCents: row.total_cents === null ? null : num(row.total_cents), failedAttempts: row.failed_attempts,
+        deliveryLatitude: row.delivery_latitude, deliveryLongitude: row.delivery_longitude,
         items: row.items.map((item) => ({ name: item.name, quantity: item.quantity, unitPriceCents: item.unitPriceCents, lineTotalCents: Number(item.lineTotalCents) })),
       }));
     });
@@ -192,7 +198,7 @@ export class PrismaFlowsRepository implements FlowsRepository {
 
   private async addressById(userId: string, id: string): Promise<Address> {
     const rows = await this.prisma.$queryRaw<AddressRow[]>`
-      SELECT id, label, zone_id, address, recipient_name, recipient_phone, is_default, version
+      SELECT id, label, zone_id, address, recipient_name, recipient_phone, is_default, version, latitude, longitude
         FROM logistica.customer_addresses WHERE id = ${id}::uuid AND user_id = ${userId}::uuid`;
     const row = rows[0];
     if (row === undefined) throw new StoreError('ADDRESS_NOT_FOUND');
@@ -202,7 +208,7 @@ export class PrismaFlowsRepository implements FlowsRepository {
   listAddresses(userId: string): Promise<readonly Address[]> {
     return this.run(async () => {
       const rows = await this.prisma.$queryRaw<AddressRow[]>`
-        SELECT id, label, zone_id, address, recipient_name, recipient_phone, is_default, version
+        SELECT id, label, zone_id, address, recipient_name, recipient_phone, is_default, version, latitude, longitude
           FROM logistica.customer_addresses WHERE user_id = ${userId}::uuid ORDER BY is_default DESC, label_key, id`;
       return rows.map(toAddress);
     });
@@ -212,7 +218,8 @@ export class PrismaFlowsRepository implements FlowsRepository {
     return this.run(async () => {
       const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
         SELECT logistica.create_address(${userId}::uuid, ${input.label}::text, ${input.zoneId}::uuid, ${input.address}::text,
-                                        ${input.recipientName}::text, ${input.recipientPhone}::text, ${input.isDefault}::boolean) AS id`;
+                                        ${input.recipientName}::text, ${input.recipientPhone}::text, ${input.isDefault}::boolean,
+                                        ${input.latitude}::double precision, ${input.longitude}::double precision) AS id`;
       const id = rows[0]?.id;
       if (id === undefined) throw new StoreError('PERSISTENCE_UNAVAILABLE');
       return this.addressById(userId, id);
@@ -228,6 +235,8 @@ export class PrismaFlowsRepository implements FlowsRepository {
       if (patch.recipientName !== undefined) json['recipientName'] = patch.recipientName;
       if (patch.recipientPhone !== undefined) json['recipientPhone'] = patch.recipientPhone;
       if (patch.isDefault !== undefined) json['isDefault'] = patch.isDefault;
+      if (patch.latitude !== undefined) json['latitude'] = patch.latitude;
+      if (patch.longitude !== undefined) json['longitude'] = patch.longitude;
       const payload = JSON.stringify(json);
       await this.prisma.$queryRaw`SELECT logistica.update_address(${id}::uuid, ${userId}::uuid, ${payload}::jsonb, ${expectedVersion}::bigint)`;
       return this.addressById(userId, id);
@@ -249,7 +258,8 @@ export class PrismaFlowsRepository implements FlowsRepository {
       const heads = await this.prisma.$queryRaw<OrderHeadRow[]>`
         SELECT o.id, o.status, o.zone_id, s.customer_user_id, o.delivery_address,
                to_char(o.delivery_date, 'YYYY-MM-DD') AS delivery_date, left(o.delivery_time::text, 5) AS delivery_time,
-               o.recipient_name, o.recipient_phone, o.notes, s.total_cents, s.items_count, s.payment_method, s.created_at
+               o.recipient_name, o.recipient_phone, o.notes, s.total_cents, s.items_count, s.payment_method, s.created_at,
+               s.delivery_latitude, s.delivery_longitude
           FROM logistica.store_orders s JOIN logistica.orders o ON o.id = s.order_id
          WHERE (${status}::text IS NULL OR o.status = ${status}::text)
            AND (${date}::date IS NULL OR o.delivery_date = ${date}::date)
@@ -280,7 +290,8 @@ export class PrismaFlowsRepository implements FlowsRepository {
           id: row.id, status: row.status, zoneId: row.zone_id, deliveryAddress: row.delivery_address, deliveryDate: row.delivery_date,
           deliveryTime: row.delivery_time, totalCents: num(row.total_cents), itemsCount: row.items_count, paymentMethod: row.payment_method,
           createdAt: iso(row.created_at), customerId: row.customer_user_id, recipientName: row.recipient_name, recipientPhone: row.recipient_phone,
-          notes: row.notes, items: byOrder.get(row.id) ?? [],
+          notes: row.notes, deliveryLatitude: row.delivery_latitude, deliveryLongitude: row.delivery_longitude,
+          items: byOrder.get(row.id) ?? [],
         })),
         page: paging.page, pageSize: paging.pageSize, total: num(counts[0]?.total),
       };

@@ -30,6 +30,7 @@ const app = database
       fileStorage: storages.courierStorage,
       productImageStorage: storages.productImages,
       securityLog: createJsonSecurityLog(),
+      ...(config.googleClientId ? { googleClientId: config.googleClientId } : {}),
       onNotificationWorker: (worker) => { notificationWorker = worker; },
       emailSender: config.mail.transport === 'smtp' ? new SmtpEmailSender(config.mail.smtp) : new ConsoleEmailSender(),
       ...(config.trustProxyHops !== undefined ? { trustProxyHops: config.trustProxyHops } : {}),

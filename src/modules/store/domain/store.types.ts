@@ -122,6 +122,9 @@ export interface PlaceOrderCommand {
   readonly notes: string | null;
   readonly items: readonly OrderItemInput[];
   readonly idempotencyKey: string;
+  /** Pin del mapa (opcional): las dos coordenadas juntas o ambas nulas (dirección escrita a mano). */
+  readonly latitude: number | null;
+  readonly longitude: number | null;
 }
 
 export type OrderConflictReason =
@@ -156,6 +159,9 @@ export interface StoreOrderSummary {
   readonly itemsCount: number;
   readonly paymentMethod: string;
   readonly createdAt: string;
+  /** Punto de entrega elegido en el mapa; nulo si la dirección se escribió a mano. */
+  readonly deliveryLatitude: number | null;
+  readonly deliveryLongitude: number | null;
 }
 
 export interface StoreOrderLine {

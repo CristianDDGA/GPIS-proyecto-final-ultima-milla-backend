@@ -16,6 +16,7 @@ import {
   parseThreshold,
 } from '../../src/modules/store/domain/flows.validation.js';
 import { StoreError } from '../../src/modules/store/domain/store.errors.js';
+import { parseCoordinates, parsePlaceOrder } from '../../src/modules/store/domain/store.validation.js';
 import { InMemoryStoreRepository } from '../../src/modules/store/infrastructure/in-memory/in-memory-store.repository.js';
 import { mapStoreSqlError } from '../../src/modules/store/infrastructure/postgres/store-sql-errors.js';
 import type { PendingNotification } from '../../src/modules/store/domain/flows.types.js';
@@ -180,6 +181,7 @@ async function queuedOrder(repository: InMemoryStoreRepository, customerId: stri
   const placed = await repository.placeOrder({
     customerId, idempotencyKey: KEY, zoneId: UUID, deliveryAddress: 'Av. 9 de Octubre 123', deliveryDate: '2099-01-10', deliveryTime: '10:00',
     recipientName: null, recipientPhone: null, notes: null, items: [{ productId: product.id, quantity: 2, unitPriceCents: 1000 }],
+    latitude: null, longitude: null,
   });
   assert.equal(placed.status, 'ok');
   return placed.status === 'ok' ? placed.orderId : '';
@@ -229,4 +231,49 @@ test('tras 5 intentos fallidos el aviso se da por fallido y deja de reclamarse',
   for (let attempt = 0; attempt < 5; attempt += 1) assert.equal(await worker.runOnce(), 1);
   assert.deepEqual(repository.notificationStates(), { fallida: 1 });
   assert.equal(await worker.runOnce(), 0);
+});
+
+// ------------------------------------------------------------------------------------------- coordenadas (mapa)
+
+test('coordenadas: ambas o ninguna, números dentro de Ecuador', () => {
+  assert.deepEqual(parseCoordinates({}), { latitude: null, longitude: null });
+  assert.deepEqual(parseCoordinates({ latitude: null, longitude: null }), { latitude: null, longitude: null });
+  assert.deepEqual(parseCoordinates({ latitude: -0.1807, longitude: -78.4678 }), { latitude: -0.1807, longitude: -78.4678 });
+  assert.deepEqual(parseCoordinates({ latitude: -0.9, longitude: -89.6 }), { latitude: -0.9, longitude: -89.6 }); // Galápagos
+  rejects(() => parseCoordinates({ latitude: -0.18 }));
+  rejects(() => parseCoordinates({ longitude: -78.4 }));
+  rejects(() => parseCoordinates({ latitude: -0.18, longitude: null }));
+  rejects(() => parseCoordinates({ latitude: '-0.18', longitude: '-78.4' }));
+  rejects(() => parseCoordinates({ latitude: Number.NaN, longitude: -78.4 }));
+  rejects(() => parseCoordinates({ latitude: 40.4, longitude: -3.7 })); // Madrid
+  rejects(() => parseCoordinates({ latitude: -0.18, longitude: -60 })); // fuera del rectángulo de Ecuador
+});
+
+test('el pedido acepta el pin del mapa y sigue valiendo sin él', () => {
+  const base = {
+    zoneId: UUID, deliveryAddress: 'Av. Amazonas 123 y Naciones Unidas', deliveryDate: '2030-05-05', deliveryTime: '10:00',
+    items: [{ productId: UUID, quantity: 1, unitPriceCents: 500 }],
+  };
+  const manual = parsePlaceOrder(base, KEY, UUID);
+  assert.equal(manual.latitude, null);
+  assert.equal(manual.longitude, null);
+  const pinned = parsePlaceOrder({ ...base, latitude: -0.18, longitude: -78.47 }, KEY, UUID);
+  assert.equal(pinned.latitude, -0.18);
+  assert.equal(pinned.longitude, -78.47);
+  rejects(() => parsePlaceOrder({ ...base, latitude: -0.18 }, KEY, UUID));
+  rejects(() => parsePlaceOrder({ ...base, latitude: 10, longitude: 10 }, KEY, UUID));
+});
+
+test('direcciones: pin al crear, y el parche lo cambia o lo quita solo con las dos coordenadas', () => {
+  const base = { label: 'Casa', zoneId: UUID, address: 'Av. 9 de Octubre 123' };
+  assert.equal(parseNewAddress(base).latitude, null);
+  assert.deepEqual(
+    { lat: parseNewAddress({ ...base, latitude: -2.17, longitude: -79.92 }).latitude, lng: parseNewAddress({ ...base, latitude: -2.17, longitude: -79.92 }).longitude },
+    { lat: -2.17, lng: -79.92 },
+  );
+  rejects(() => parseNewAddress({ ...base, longitude: -79.92 }));
+  assert.deepEqual(parseAddressPatch({ expectedVersion: 1, latitude: -2.17, longitude: -79.92 }).patch, { latitude: -2.17, longitude: -79.92 });
+  assert.deepEqual(parseAddressPatch({ expectedVersion: 1, latitude: null, longitude: null }).patch, { latitude: null, longitude: null });
+  rejects(() => parseAddressPatch({ expectedVersion: 1, latitude: -2.17 }));
+  rejects(() => parseAddressPatch({ expectedVersion: 1, latitude: 99, longitude: -79.92 }));
 });
