@@ -10,7 +10,7 @@ import type {
   UserListFilter,
 } from '../../src/modules/auth/application/ports/auth.repository.port.js';
 import type { EmailMessage, EmailSender } from '../../src/modules/auth/application/ports/email-sender.port.js';
-import { toPublicRole, type AdminUserView, type AuthUser, type AuthUserRecord } from '../../src/modules/auth/domain/auth-user.entity.js';
+import { toPublicRole, type AdminUserView, type AuthUser, type AuthUserRecord, type ProfileUpdate, type UserProfile } from '../../src/modules/auth/domain/auth-user.entity.js';
 import { AuthError } from '../../src/modules/auth/domain/auth.errors.js';
 
 interface StoredCode {
@@ -27,6 +27,7 @@ export class InMemoryAuthRepository implements AuthRepository {
   private readonly createdAt = new Map<string, number>();
   private readonly usersWithActiveRoute = new Set<string>();
   private readonly googleSubs = new Map<string, string>(); // userId -> sub
+  private readonly phones = new Map<string, string>(); // userId -> teléfono
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -145,6 +146,32 @@ export class InMemoryAuthRepository implements AuthRepository {
       this.usersById.set(userId, { ...record, passwordHash: newPasswordHash });
     }
     return result;
+  }
+
+  async findProfile(userId: string): Promise<UserProfile | null> {
+    const record = this.usersById.get(userId);
+    if (!record || !record.isActive) return null;
+    return {
+      id: record.id,
+      email: record.email,
+      role: record.role,
+      publicRole: toPublicRole(record.role),
+      displayName: record.displayName,
+      phone: this.phones.get(userId) ?? null,
+      emailVerified: record.emailVerified,
+      hasPassword: record.passwordHash !== null,
+      googleLinked: this.googleSubs.has(userId),
+      createdAt: new Date(this.createdAt.get(userId) ?? this.now()).toISOString(),
+    };
+  }
+
+  async updateProfile(userId: string, update: ProfileUpdate): Promise<boolean> {
+    const record = this.usersById.get(userId);
+    if (!record || !record.isActive) return false;
+    this.usersById.set(userId, { ...record, displayName: update.displayName });
+    if (update.phone === null) this.phones.delete(userId);
+    else this.phones.set(userId, update.phone);
+    return true;
   }
 
   async setPassword(userId: string, newPasswordHash: string): Promise<boolean> {

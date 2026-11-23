@@ -26,6 +26,35 @@ export interface AdminUserView extends AuthUser {
   readonly emailVerifiedVia: EmailVerifiedVia | null;
 }
 
+/** Perfil propio (GET/PATCH /auth/me/profile): datos que la persona ve y edita en "Mi perfil". */
+export interface UserProfile {
+  readonly id: string;
+  readonly email: string;
+  readonly role: AppRole;
+  readonly publicRole: PublicRole;
+  readonly displayName: string | null;
+  readonly phone: string | null;
+  readonly emailVerified: boolean;
+  /** false en una cuenta creada solo con Google: no puede cambiar una clave que no tiene. */
+  readonly hasPassword: boolean;
+  readonly googleLinked: boolean;
+  readonly createdAt: string;
+}
+
+export interface ProfileUpdate {
+  readonly displayName: string | null;
+  readonly phone: string | null;
+}
+
+/** Teléfono opcional del perfil: 7 a 15 dígitos, + inicial opcional; espacios y guiones se quitan. null o '' lo borran. */
+export function validatePhone(value: unknown): string | null {
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string' || !/^\+?\d(?:[ -]?\d){6,14}$/.test(value.trim())) {
+    throw new AuthError('VALIDATION_ERROR', 'El teléfono debe tener entre 7 y 15 dígitos (puede iniciar con +).');
+  }
+  return value.trim().replace(/[ -]/g, '');
+}
+
 export interface AuthUserRecord extends AuthUser {
   readonly passwordHash: string | null;
   /** null mientras el correo no esté verificado. Solo 'code' prueba que el usuario controla el correo. */

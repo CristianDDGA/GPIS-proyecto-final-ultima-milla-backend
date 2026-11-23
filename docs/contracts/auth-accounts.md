@@ -56,6 +56,29 @@ la nueva es igual a la actual.
 
 `{ id, authSubject, email, role, publicRole, displayName, isActive, courierId, emailVerified }`
 
+## Perfil propio (migración 015)
+
+Para la pantalla "Mi perfil" de cualquier rol (con sesión):
+
+- `GET /auth/me/profile` → `200 { profile }`.
+- `PATCH /auth/me/profile` `{ displayName?, phone? }` → `200 { profile }`. Lo que no se envía queda igual; `null` o `""`
+  borra el valor. Otro campo, o un cuerpo sin ninguno de los dos, responde `400 VALIDATION_ERROR`.
+  - `displayName`: misma regla que el registro (solo letras, espacios, apóstrofo, guion y punto).
+  - `phone`: de 7 a 15 dígitos, `+` inicial opcional; espacios y guiones se aceptan y se guardan sin ellos
+    (`"+593 99 123 4567"` → `"+593991234567"`).
+
+Objeto `profile`:
+
+```json
+{ "id": "…", "email": "…", "role": "cliente", "publicRole": "cliente", "displayName": "Ana Pérez",
+  "phone": "+593991234567", "emailVerified": true, "hasPassword": true, "googleLinked": false,
+  "createdAt": "2026-11-19T15:04:05.000Z" }
+```
+
+- `hasPassword: false` en una cuenta creada solo con Google: el frontend no debe ofrecer "Cambiar contraseña".
+- `googleLinked`: la cuenta puede entrar con Google.
+- El objeto `user` de `/auth/me` y del inicio de sesión no cambia.
+
 ## Gestión de usuarios (solo `personal`)
 
 | Endpoint | Descripción |

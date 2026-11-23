@@ -78,6 +78,62 @@ export function defineStoreFlowsSuite(create: () => Promise<StoreHarness> | Stor
     return route;
   }
 
+  // ------------------------------------------------------------------------------------------- seguimiento
+  describe('Seguimiento del pedido (migración 015)', () => {
+    type Tracked = { status: string; history: Array<{ status: string; at: string }>; courier: { firstName: string } | null };
+    const tracked = async (orderId: string, token: string = h.customerToken): Promise<Tracked> => {
+      const response = await api().get(`/store/orders/${orderId}`).set(bearer(token));
+      expect(response.status).toBe(200);
+      return response.body as Tracked;
+    };
+
+    it('muestra la hora de cada paso y el nombre de pila del repartidor solo mientras lleva el pedido', async () => {
+      const product = await newProduct(10, 2500);
+      const orderId = await placeOrder(product.id, 2, 2500);
+
+      const placed = await tracked(orderId);
+      expect(placed.history.map((event) => event.status)).toEqual(['pendiente']);
+      expect(Number.isFinite(Date.parse(placed.history[0]?.at ?? ''))).toBe(true);
+      expect(placed.courier).toBeNull();
+
+      await onTheWay(orderId);
+      const moving = await tracked(orderId);
+      expect(moving.history.map((event) => event.status)).toEqual(['pendiente', 'asignado_a_ruta', 'recogido', 'en_camino']);
+      const times = moving.history.map((event) => Date.parse(event.at));
+      expect([...times].sort((a, b) => a - b)).toEqual(times);
+      expect(moving.courier).toEqual({ firstName: 'Conductor' });
+
+      // El administrador ve lo mismo; otro cliente no ve el pedido.
+      expect((await tracked(orderId, h.adminToken)).courier).toEqual({ firstName: 'Conductor' });
+      expect((await api().get(`/store/orders/${orderId}`).set(other())).status).toBe(404);
+
+      const version = await versionOf(orderId);
+      expect((await deliver(orderId, { expectedVersion: version, collectedCents: 5000 })).status).toBe(200);
+      const delivered = await tracked(orderId);
+      expect(delivered.history.map((event) => event.status)).toEqual(['pendiente', 'asignado_a_ruta', 'recogido', 'en_camino', 'entregado']);
+    });
+
+    it('un pedido cancelado registra el paso de cancelación y no tiene repartidor', async () => {
+      const product = await newProduct(10, 2500);
+      const orderId = await placeOrder(product.id, 1, 2500);
+      expect((await cancel(orderId)).status).toBe(200);
+      const cancelled = await tracked(orderId);
+      expect(cancelled.history.map((event) => event.status)).toEqual(['pendiente', 'cancelado']);
+      expect(cancelled.courier).toBeNull();
+    });
+
+    it('el pedido recién creado ya trae su línea de tiempo', async () => {
+      const product = await newProduct(10, 2500);
+      const response = await api().post('/store/orders').set(customer()).set('Idempotency-Key', uuid()).send({
+        zoneId: h.zoneId, deliveryAddress: 'Av. 9 de Octubre 123 y Malecón', deliveryDate: futureDate(3), deliveryTime: '11:00',
+        items: [{ productId: product.id, quantity: 1, unitPriceCents: 2500 }],
+      });
+      expect(response.status).toBe(201);
+      expect(response.body.history.map((event: { status: string }) => event.status)).toEqual(['pendiente']);
+      expect(response.body.courier).toBeNull();
+    });
+  });
+
   // ------------------------------------------------------------------------------------------- cancelar
   describe('Cancelar un pedido', () => {
     it('el cliente cancela su pedido: devuelve el stock, libera la franja y es idempotente', async () => {
