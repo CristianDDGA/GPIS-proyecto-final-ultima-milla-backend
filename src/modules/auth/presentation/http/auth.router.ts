@@ -266,6 +266,25 @@ export function createAuthRouter(
     }),
   );
 
+  // Perfil propio: nombre, teléfono y datos de la cuenta ("Mi perfil").
+  router.get(
+    '/me/profile',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      const profile = await useCases.getProfile(claims.sub);
+      response.status(200).json({ profile });
+    }),
+  );
+
+  router.patch(
+    '/me/profile',
+    route(async (request, response) => {
+      const claims = await extractBearerToken(request, tokens, revocationStore);
+      const profile = await useCases.updateProfile(claims.sub, bodyObject(request));
+      response.status(200).json({ profile });
+    }),
+  );
+
   router.post(
     '/logout',
     route(async (request, response) => {

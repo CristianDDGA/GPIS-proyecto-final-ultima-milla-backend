@@ -20,6 +20,7 @@ import type {
   StoreOrderSummary,
   StoreSettings,
 } from '../../domain/store.types.js';
+import { firstNameOf } from '../../domain/store.types.js';
 import { isRetryableSqlError, mapStoreSqlError } from './store-sql-errors.js';
 
 // Lecturas: SELECT parametrizado (el rol de la API solo tiene SELECT). Escrituras: solo funciones SECURITY DEFINER
@@ -434,6 +435,20 @@ export class PrismaStoreRepository implements CatalogRepository, StoreOrderRepos
           FROM logistica.order_items i LEFT JOIN logistica.products p ON p.id = i.product_id
          WHERE i.order_id = ${id}::uuid
          ORDER BY i.product_name, i.product_id`;
+      // Línea de tiempo: solo la creación y los cambios de estado (no las ediciones de datos), en orden.
+      const events = await this.prisma.$queryRaw<Array<{ to_status: string; occurred_at: Date }>>`
+        SELECT to_status, occurred_at FROM logistica.order_events
+         WHERE order_id = ${id}::uuid AND event_type IN ('creado', 'estado_cambiado')
+         ORDER BY order_version`;
+      // Repartidor de la ruta vigente (asignada o en curso) que tiene la parada del pedido.
+      const couriers = await this.prisma.$queryRaw<Array<{ display_name: string }>>`
+        SELECT c.display_name
+          FROM logistica.route_stops s
+          JOIN logistica.routes r ON r.id = s.route_id
+          JOIN logistica.couriers c ON c.id = r.courier_id
+         WHERE s.order_id = ${id}::uuid AND s.released_at IS NULL AND r.status IN ('asignada', 'en_curso')
+         LIMIT 1`;
+      const firstName = firstNameOf(couriers[0]?.display_name);
       return {
         ...toSummary(row),
         customerId: row.customer_user_id,
@@ -441,6 +456,8 @@ export class PrismaStoreRepository implements CatalogRepository, StoreOrderRepos
         recipientPhone: row.recipient_phone,
         notes: row.notes,
         items: lines.map(toLine),
+        history: events.map((event) => ({ status: event.to_status, at: new Date(event.occurred_at).toISOString() })),
+        courier: firstName === null ? null : { firstName },
       };
     });
   }

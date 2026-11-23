@@ -1,4 +1,4 @@
-import type { AdminUserView, AppRole, AuthUser, AuthUserRecord } from '../../domain/auth-user.entity.js';
+import type { AdminUserView, AppRole, AuthUser, AuthUserRecord, ProfileUpdate, UserProfile } from '../../domain/auth-user.entity.js';
 
 /**
  * pending: el correo debe verificarse con un código (registro propio de un cliente).
@@ -56,4 +56,8 @@ export interface AuthRepository {
   findUserView(id: string): Promise<AdminUserView | null>;
   /** Activa o desactiva una cuenta. Desactivar cierra sus sesiones; no permite dejar al sistema sin administrador. */
   setUserActive(userId: string, active: boolean): Promise<SetActiveResult>;
+  /** Perfil propio de una cuenta (sin el hash de la clave). */
+  findProfile(userId: string): Promise<UserProfile | null>;
+  /** Guarda nombre y teléfono finales. false si la cuenta no existe o está inactiva. */
+  updateProfile(userId: string, update: ProfileUpdate): Promise<boolean>;
 }

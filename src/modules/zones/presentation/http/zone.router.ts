@@ -12,6 +12,15 @@ export function createZoneRouter(controller: ZoneController): Router {
     void controller.list(request, response);
   });
 
+  // Antes de '/:id' para que 'lookup' no se lea como identificador.
+  router.get('/lookup', (request, response) => {
+    void controller.lookup(request, response);
+  });
+
+  router.put('/:id/coverage', (request, response) => {
+    void controller.setCoverage(request, response);
+  });
+
   router.get('/:id', (request, response) => {
     void controller.getById(request, response);
   });

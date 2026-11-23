@@ -10,6 +10,8 @@ import {
   type AdminUserView,
   type AppRole,
   type AuthUser,
+  validatePhone,
+  type UserProfile,
 } from '../domain/auth-user.entity.js';
 import { validateNewPassword } from '../domain/password-policy.js';
 import { buildCodeEmail } from './email-templates.js';
@@ -88,6 +90,9 @@ export interface AuthUseCases {
   setUserActive(actor: AdminActor, userId: unknown, input: { isActive: unknown }): Promise<AdminUserView>;
   logout(jti: string, expSeconds: number): Promise<void>;
   getMe(userId: string): Promise<AuthUser>;
+  getProfile(userId: string): Promise<UserProfile>;
+  /** Cambia el nombre y/o el teléfono propios; lo que no se envía queda igual. */
+  updateProfile(userId: string, input: Record<string, unknown>): Promise<UserProfile>;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -489,6 +494,30 @@ export function createAuthUseCases(
         throw new AuthError('USER_INACTIVE');
       }
       return user;
+    },
+
+    async getProfile(userId) {
+      const profile = await repository.findProfile(userId);
+      if (!profile) throw new AuthError('UNAUTHORIZED');
+      return profile;
+    },
+
+    async updateProfile(userId, input) {
+      const allowed = ['displayName', 'phone'];
+      const unknownKey = Object.keys(input).find((key) => !allowed.includes(key));
+      if (unknownKey !== undefined) throw new AuthError('VALIDATION_ERROR', `Campo no permitido: ${unknownKey}.`);
+      if (!('displayName' in input) && !('phone' in input)) {
+        throw new AuthError('VALIDATION_ERROR', 'Envía displayName, phone o ambos.');
+      }
+      const current = await repository.findProfile(userId);
+      if (!current) throw new AuthError('UNAUTHORIZED');
+      const displayName = 'displayName' in input ? validateNewDisplayName(input['displayName']) : current.displayName;
+      const phone = 'phone' in input ? validatePhone(input['phone']) : current.phone;
+      const saved = await repository.updateProfile(userId, { displayName, phone });
+      if (!saved) throw new AuthError('USER_INACTIVE');
+      const profile = await repository.findProfile(userId);
+      if (!profile) throw new AuthError('UNAUTHORIZED');
+      return profile;
     },
   };
 }

@@ -174,12 +174,33 @@ export interface StoreOrderLine {
   readonly imageKey: string | null;
 }
 
+/** Un cambio de estado del pedido y cuándo ocurrió (para la línea de tiempo del seguimiento). */
+export interface OrderStatusEvent {
+  readonly status: string;
+  readonly at: string;
+}
+
+/** Repartidor que lleva el pedido; solo el nombre de pila (sin datos de contacto). */
+export interface OrderCourierInfo {
+  readonly firstName: string;
+}
+
 export interface StoreOrderDetail extends StoreOrderSummary {
   readonly customerId: string;
   readonly recipientName: string | null;
   readonly recipientPhone: string | null;
   readonly notes: string | null;
   readonly items: readonly StoreOrderLine[];
+  /** Presente en el detalle de un pedido (GET /store/orders/:id y la respuesta del pedido nuevo). */
+  readonly history?: readonly OrderStatusEvent[];
+  /** Repartidor mientras el pedido está en una ruta asignada o en curso; null si aún no tiene o ya terminó. */
+  readonly courier?: OrderCourierInfo | null;
+}
+
+/** Nombre de pila a partir del nombre completo del repartidor. */
+export function firstNameOf(displayName: string | null | undefined): string | null {
+  const first = (displayName ?? '').trim().split(/\s+/)[0] ?? '';
+  return first.length > 0 ? first : null;
 }
 
 /** Quién pregunta: el cliente solo ve sus pedidos; el administrador ve todos. */

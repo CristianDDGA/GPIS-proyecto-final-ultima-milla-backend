@@ -44,6 +44,7 @@ import type {
   StoreOrderSummary,
   StoreSettings,
 } from '../../domain/store.types.js';
+import { firstNameOf } from '../../domain/store.types.js';
 
 // Réplica en memoria de la lógica de la migración 010 para pruebas rápidas de integración (sin PostgreSQL):
 // mismas reglas, mismos códigos de error y la misma atomicidad (las operaciones se serializan con una cola).
@@ -147,6 +148,7 @@ interface StoredOrder {
   failures: Array<{ attempt: number; reason: FailureReason; note: string | null; courierUserId: string; at: Date }>;
   collection: { amountCents: number; courierUserId: string; at: Date } | null;
   cancellation: { reason: CancelReason; note: string | null; actorId: string; restocked: boolean } | null;
+  history: Array<{ status: OrderStatus; at: Date }>;
 }
 
 const DEFAULT_SETTINGS: StoreSettings = { slotCapacity: 10, firstSlotHour: 8, lastSlotHour: 20, minLeadMinutes: 60 };
@@ -459,7 +461,9 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
         recipientPhone: command.recipientPhone, notes: command.notes, totalCents: 0, lines: [], createdAt: this.now(),
         latitude: command.latitude, longitude: command.longitude,
         status: 'pendiente', version: 1, stop: null, failures: [], collection: null, cancellation: null,
+        history: [],
       };
+      order.history.push({ status: 'pendiente', at: order.createdAt });
       for (const item of items) {
         const product = this.products.get(item.productId) as StoredProduct;
         product.stockQuantity -= item.quantity;
@@ -498,10 +502,13 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
   async getOrder(id: string, scope: OrderScope): Promise<StoreOrderDetail | null> {
     const order = this.orders.get(id);
     if (!order || (scope.customerId !== undefined && order.customerId !== scope.customerId)) return null;
+    const firstName = order.stop === null ? null : firstNameOf(this.options.courierName?.(order.stop.courierUserId));
     return {
       ...this.orderSummary(order), customerId: order.customerId, recipientName: order.recipientName,
       recipientPhone: order.recipientPhone, notes: order.notes,
       items: order.lines.map((line) => ({ ...line, imageKey: this.products.get(line.productId)?.imageKey ?? null })),
+      history: order.history.map((event) => ({ status: event.status, at: event.at.toISOString() })),
+      courier: firstName === null ? null : { firstName },
     };
   }
 
@@ -527,6 +534,7 @@ export class InMemoryStoreRepository implements CatalogRepository, StoreOrderRep
     const from = order.status;
     order.status = to;
     order.version += 1;
+    order.history.push({ status: to, at: this.now() });
     if (to === 'cancelado') this.enqueue(order, 'order_cancelled', to);
     else if (to === 'en_camino' || to === 'entregado' || to === 'entrega_fallida') this.enqueue(order, 'order_status', to);
     else if (from === 'entrega_fallida' && to === 'pendiente') this.enqueue(order, 'order_rescheduled', to);

@@ -8,6 +8,8 @@ import {
   type AuthUser,
   type AuthUserRecord,
   type EmailVerifiedVia,
+  type ProfileUpdate,
+  type UserProfile,
 } from '../../domain/auth-user.entity.js';
 import type {
   AuthRepository,
@@ -19,6 +21,18 @@ import type {
   SetActiveResult,
   UserListFilter,
 } from '../../application/ports/auth.repository.port.js';
+
+interface ProfileRow {
+  readonly id: string;
+  readonly email: string | null;
+  readonly role: string;
+  readonly display_name: string | null;
+  readonly phone: string | null;
+  readonly email_verified_via: string | null;
+  readonly has_password: boolean;
+  readonly google_linked: boolean;
+  readonly created_at: Date;
+}
 
 interface UserRow {
   readonly id: string;
@@ -162,6 +176,46 @@ export class PrismaAuthRepository implements AuthRepository {
     if (!record) return null;
     const { passwordHash: _passwordHash, emailVerifiedVia: _via, ...user } = record;
     return user;
+  }
+
+  async findProfile(userId: string): Promise<UserProfile | null> {
+    try {
+      const rows = await this.database.$queryRaw<ProfileRow[]>`
+          SELECT u.id, u.email, u.role, u.display_name, u.phone, u.email_verified_via,
+                 (u.password_hash IS NOT NULL) AS has_password, (u.google_sub IS NOT NULL) AS google_linked, u.created_at
+          FROM logistica.app_users u
+          WHERE u.id = ${userId}::uuid AND u.is_active
+          LIMIT 1
+        `;
+      const row = rows[0];
+      if (!row) return null;
+      const role = row.role as AppRole;
+      return {
+        id: row.id,
+        email: row.email ?? '',
+        role,
+        publicRole: toPublicRole(role),
+        displayName: row.display_name,
+        phone: row.phone,
+        emailVerified: row.email_verified_via !== null,
+        hasPassword: row.has_password,
+        googleLinked: row.google_linked,
+        createdAt: row.created_at.toISOString(),
+      };
+    } catch {
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
+  }
+
+  async updateProfile(userId: string, update: ProfileUpdate): Promise<boolean> {
+    try {
+      const rows = await this.database.$queryRaw<Array<{ updated: boolean }>>`
+        SELECT logistica.update_profile(${userId}::uuid, ${update.displayName}::text, ${update.phone}::text) AS updated
+      `;
+      return rows[0]?.updated === true;
+    } catch {
+      throw new AuthError('PERSISTENCE_UNAVAILABLE');
+    }
   }
 
   async findRecordById(id: string): Promise<AuthUserRecord | null> {

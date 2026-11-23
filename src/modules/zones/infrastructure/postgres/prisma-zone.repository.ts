@@ -1,4 +1,4 @@
-import { Zone, type NewZone } from '../../domain/zone.entity.js';
+import { Zone, type NewZone, type ZoneCoverage } from '../../domain/zone.entity.js';
 import { ZoneConflictError, PersistenceUnavailableError } from '../../domain/zone.errors.js';
 import type { ZoneRepository } from '../../application/ports/zone.repository.port.js';
 import type { PrismaDatabaseClient, PrismaQueryClient } from '../../../../infrastructure/postgres/prisma-client.port.js';
@@ -8,11 +8,19 @@ export interface PrismaZoneRecord {
   readonly name: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+  readonly centerLatitude?: number | null;
+  readonly centerLongitude?: number | null;
+  readonly coverageRadiusKm?: number | string | null;
 }
 export type PrismaClientLike = PrismaDatabaseClient;
 
+function mapCoverage(record: PrismaZoneRecord): ZoneCoverage | null {
+  if (record.centerLatitude == null || record.centerLongitude == null || record.coverageRadiusKm == null) return null;
+  return { latitude: Number(record.centerLatitude), longitude: Number(record.centerLongitude), radiusKm: Number(record.coverageRadiusKm) };
+}
+
 function mapZone(record: PrismaZoneRecord): Zone {
-  return Zone.create({id:record.id,name:record.name,createdAt:record.createdAt,updatedAt:record.updatedAt});
+  return Zone.create({id:record.id,name:record.name,createdAt:record.createdAt,updatedAt:record.updatedAt,coverage:mapCoverage(record)});
 }
 
 export class PrismaZoneRepository implements ZoneRepository {
@@ -38,7 +46,7 @@ export class PrismaZoneRepository implements ZoneRepository {
   async findByName(name: string): Promise<Zone | null> {
     try {
       const rows = await this.prisma.$queryRaw<readonly PrismaZoneRecord[]>`
-        SELECT id,name,created_at AS "createdAt",updated_at AS "updatedAt"
+        SELECT id,name,created_at AS "createdAt",updated_at AS "updatedAt",center_latitude AS "centerLatitude",center_longitude AS "centerLongitude",coverage_radius_km::text AS "coverageRadiusKm"
         FROM logistica.zones WHERE lower(btrim(name))=lower(btrim(${name}::text)) LIMIT 1`;
       return rows[0] ? mapZone(rows[0]) : null;
     } catch (error: unknown) { this.handleError(error); }
@@ -47,14 +55,35 @@ export class PrismaZoneRepository implements ZoneRepository {
   async findAll(): Promise<readonly Zone[]> {
     try {
       const rows = await this.prisma.$queryRaw<readonly PrismaZoneRecord[]>`
-        SELECT id,name,created_at AS "createdAt",updated_at AS "updatedAt" FROM logistica.zones ORDER BY name,id`;
+        SELECT id,name,created_at AS "createdAt",updated_at AS "updatedAt",center_latitude AS "centerLatitude",center_longitude AS "centerLongitude",coverage_radius_km::text AS "coverageRadiusKm" FROM logistica.zones ORDER BY name,id`;
       return rows.map(mapZone);
+    } catch (error: unknown) { this.handleError(error); }
+  }
+
+  async setCoverage(id: string, coverage: ZoneCoverage | null): Promise<Zone | null> {
+    try {
+      return await this.prisma.$transaction(async (client) => {
+        const rows = await client.$queryRaw<readonly {updated:boolean}[]>`
+          SELECT logistica.set_zone_coverage(${id}::uuid, ${coverage?.latitude ?? null}::double precision,
+            ${coverage?.longitude ?? null}::double precision, ${coverage?.radiusKm ?? null}::numeric) AS updated`;
+        if (rows[0]?.updated !== true) return null;
+        return this.getById(client, id);
+      });
+    } catch (error: unknown) { this.handleError(error); }
+  }
+
+  async findCovering(latitude: number, longitude: number): Promise<Zone | null> {
+    try {
+      const rows = await this.prisma.$queryRaw<readonly {id:string|null}[]>`
+        SELECT logistica.zone_for_point(${latitude}::double precision, ${longitude}::double precision) AS id`;
+      const id = rows[0]?.id ?? null;
+      return id === null ? null : await this.getById(this.prisma, id);
     } catch (error: unknown) { this.handleError(error); }
   }
 
   private async getById(client: PrismaQueryClient, id: string): Promise<Zone | null> {
     const rows = await client.$queryRaw<readonly PrismaZoneRecord[]>`
-      SELECT id,name,created_at AS "createdAt",updated_at AS "updatedAt" FROM logistica.zones WHERE id=${id}::uuid`;
+      SELECT id,name,created_at AS "createdAt",updated_at AS "updatedAt",center_latitude AS "centerLatitude",center_longitude AS "centerLongitude",coverage_radius_km::text AS "coverageRadiusKm" FROM logistica.zones WHERE id=${id}::uuid`;
     return rows[0] ? mapZone(rows[0]) : null;
   }
 

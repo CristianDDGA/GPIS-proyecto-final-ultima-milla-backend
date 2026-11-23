@@ -14,15 +14,17 @@ const ORIGIN = 'http://127.0.0.1:5173';
 function memoryHarness(options?: StoreHarnessOptions): StoreHarness {
   const zoneId = randomUUID();
   const inactiveZoneId = randomUUID();
+  const driverUserId = randomUUID();
   const repository = new InMemoryStoreRepository({
     zoneState: (id) => (id === zoneId ? 'active' : id === inactiveZoneId ? 'inactive' : 'missing'),
+    // Mismo nombre que el conductor de la suite de PostgreSQL.
+    courierName: (id) => (id === driverUserId ? 'Conductor de tienda' : null),
   });
   const images = new InMemoryFileStorage();
   const store = createStoreModule({ catalog: repository, orders: repository, flows: repository, images: new ProductImageStorageAdapter(images) });
   const tokens = new HmacJwtTokenService(SECRET);
   const token = (role: 'personal' | 'cliente' | 'repartidor', sub: string = randomUUID()) =>
     tokens.sign({ sub, role, authSubject: `${role}@test`, courierId: null });
-  const driverUserId = randomUUID();
   repository.registerCourier(driverUserId);
   const app = createApp({
     webOrigin: ORIGIN,

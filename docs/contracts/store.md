@@ -134,6 +134,24 @@ Un cliente ve solo sus pedidos; el administrador ve todos. Resumen sin líneas, 
 ### `GET /store/orders/:id`
 Detalle con líneas. Un pedido ajeno responde 404.
 
+Desde la migración 015 el detalle (y la respuesta de `POST /store/orders`) trae también el seguimiento:
+
+```json
+{
+  "history": [
+    { "status": "pendiente", "at": "2026-11-23T21:36:09.981Z" },
+    { "status": "asignado_a_ruta", "at": "2026-11-23T21:50:12.004Z" },
+    { "status": "en_camino", "at": "2026-11-23T22:05:40.511Z" }
+  ],
+  "courier": { "firstName": "Pablo" }
+}
+```
+
+- `history`: la creación y cada cambio de estado, en orden, con la hora (ISO UTC). Las ediciones de datos no aparecen.
+  Un pedido reprogramado puede repetir estados (`entrega_fallida → pendiente → asignado_a_ruta …`).
+- `courier`: solo el **nombre de pila** del repartidor mientras el pedido está en una ruta asignada o en curso; `null`
+  antes de asignarse y cuando la ruta se cierra. Nunca incluye teléfono ni otros datos del repartidor.
+
 ## Imágenes
 
 ### `GET /store/images/:key` (pública)
