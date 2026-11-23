@@ -54,7 +54,7 @@ El segundo comando exige `DATABASE_PACKAGE_DIR` y comprueba que existan los diez
 
 El lanzador utiliza el `compose.test.yaml` externo con nombre de proyecto único, tmpfs y un puerto efímero en localhost. No toca la base `logistica` de desarrollo. Ejecuta los scripts SQL originales, usa sus fixtures y corre los mismos archivos Jest/Supertest con los adaptadores reales y el rol restringido. El reset administrativo se limita al contenedor temporal de esa ejecución, comprobando sus etiquetas. Al terminar elimina únicamente sus contenedores/red y el directorio temporal propio. Conserva intactos el paquete externo y los volúmenes de desarrollo.
 
-Las verificaciones se ejecutan localmente por integrante, con Node 24.22.2, Docker y el paquete de base de datos externo. El workflow anterior se retiró porque dependía de una copia del paquete dentro del repositorio. La revisión actual incorpora CI para checks independientes de ese paquete. Los resultados locales no se presentan como CI aprobado. SonarQube también se ejecuta localmente. Una automatización futura deberá definir cómo obtener el paquete externo, sin duplicar ni mantener otra versión de la base en este backend.
+Las verificaciones pueden ejecutarse localmente con Node 24.22.2, Docker y el paquete de base de datos externo. Además, GitHub Actions (`.github/workflows/ci.yml`) corre en cada PR y push a `develop`/`main` los tipos, lint, build, pruebas unitarias, integración en memoria y PostgreSQL real usando el paquete canónico `.ci/database-package.zip`, y `.github/workflows/sonar.yml` analiza con SonarQube Cloud. Matriz completa de pruebas del informe APE, comandos y resultados: [docs/PRUEBAS_Y_CALIDAD.md](docs/PRUEBAS_Y_CALIDAD.md).
 
 El runner original de concurrencia abre conexiones administrativas adicionales: se les pasa `PGOPTIONS=-csearch_path=logistica,pg_catalog` por sesión para resolver sus tablas. No se modifica el SQL del paquete ni la configuración persistente de roles.
 
@@ -68,6 +68,8 @@ Estado por tarea, evidencia y pendientes de revisión: [docs/sprint-01-cristian.
 
 ## Análisis SonarQube local
 
+El análisis oficial corre en SonarQube Cloud (organización `cristianddga`, proyecto `gpis-ultima-milla-api`) desde `sonar.yml`, con la cobertura de las pruebas unitarias. Lo siguiente es el análisis local opcional.
+
 El proyecto de esta máquina es `gpis-ultima-milla-api`, disponible en http://localhost:9000/dashboard?id=gpis-ultima-milla-api. Usa la configuración `sonar-project.properties` existente y el perfil Sonar way. El token de análisis del proyecto se guarda como `SONAR_TOKEN=...` en `.env.sonar`, excluido de Git; no se usa la contraseña de admin para el scanner.
 
 Después de guardar los cambios de código en un commit local, con Docker y SonarQube activos:
@@ -79,7 +81,7 @@ docker run --rm --env-file .env.sonar -e SONAR_HOST_URL=http://host.docker.inter
 
 Este comando analiza la copia local y vincula el resultado al commit indicado. El proyecto usa `develop` como nombre principal; al analizar una rama de trabajo local se debe identificar su SHA en la evidencia, sin atribuir el resultado al contenido remoto de develop. No publica cambios en GitHub.
 
-La cobertura aparece como 0% porque no se importó un informe de cobertura. La aprobación de la puerta de calidad del análisis inicial no reemplaza las pruebas de integración ni la revisión de hallazgos. No se cambiaron reglas ni umbrales de calidad para aprobar.
+En el análisis local la cobertura aparece como 0% si no se genera antes `npm run test:unit:coverage`. La aprobación de la puerta de calidad del análisis inicial no reemplaza las pruebas de integración ni la revisión de hallazgos. No se cambiaron reglas ni umbrales de calidad para aprobar.
 
 ## Revisión y correcciones del 20/10/2026
 
