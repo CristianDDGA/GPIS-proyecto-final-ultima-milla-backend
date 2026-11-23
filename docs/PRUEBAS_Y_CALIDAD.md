@@ -35,9 +35,13 @@ Para k6 y ZAP la API se arranca con `EMAIL_VERIFICATION_REQUIRED=false`.
 - `.github/workflows/ci.yml` se ejecuta en cada PR y en cada push a `develop`/`main`: tipos, lint, build, unitarias, tipos de pruebas, integración en memoria, verificación del paquete de base de datos y PostgreSQL real (con el artefacto `postgres-integration-evidence`).
 - `.github/workflows/sonar.yml` genera la cobertura unitaria (`coverage/lcov.info`) y analiza con SonarQube Cloud (organización `cristianddga`). Usa los secretos `SONAR_HOST_URL` y `SONAR_TOKEN`, que ya existen en este repositorio. El resultado aparece como comentario «Quality Gate» en el PR.
 
-### Fusión protegida (pendiente)
+### Fusión protegida
 
-Al 2026-11-23 el repositorio **no tiene reglas de protección** (Settings → Rules y Branches vacíos). Los checks corren y se ven en cada PR, pero GitHub no impide fusionar uno en rojo. Para exigirlo: Settings → Rules → Rulesets → nuevo ruleset sobre `develop` (y `main`) con «Require a pull request before merging» y «Require status checks to pass» con los checks `checks` (CI) y `sonar`.
+Desde el 2026-11-23 `develop` tiene el ruleset **Proteger develop** (activo):
+
+- Exige un PR para cambiar `develop` (0 aprobaciones, para que el autor pueda fusionar).
+- Exige que pasen los checks `checks` (CI), `sonar` (workflow) y `SonarCloud Code Analysis` (Quality Gate de SonarQube Cloud).
+- Bloquea el force push y el borrado de `develop`.
 
 ## SonarQube local (opcional)
 
