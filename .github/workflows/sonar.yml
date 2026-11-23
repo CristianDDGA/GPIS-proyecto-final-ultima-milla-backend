@@ -55,5 +55,17 @@ jobs:
         env:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_REF: ${{ github.head_ref }}
+          PR_BASE_REF: ${{ github.base_ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          docker run --rm -e SONAR_HOST_URL -e SONAR_TOKEN --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/usr/src" sonarsource/sonar-scanner-cli@sha256:a3f4215076706c95a17a68c19322ee916e40a3acd081a8c1a1e839e0194afa57 "-Dsonar.scm.revision=$GITHUB_SHA"
+          # El escáner corre dentro de Docker y no ve el contexto de GitHub: se le pasa explícito
+          # para que un PR se analice como PR (y no como la rama principal).
+          if [ -n "$PR_NUMBER" ]; then
+            set -- "-Dsonar.pullrequest.key=$PR_NUMBER" "-Dsonar.pullrequest.branch=$PR_HEAD_REF" "-Dsonar.pullrequest.base=$PR_BASE_REF" "-Dsonar.scm.revision=$PR_HEAD_SHA"
+          else
+            set -- "-Dsonar.branch.name=$BRANCH_NAME" "-Dsonar.scm.revision=$GITHUB_SHA"
+          fi
+          docker run --rm -e SONAR_HOST_URL -e SONAR_TOKEN --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/usr/src" sonarsource/sonar-scanner-cli@sha256:a3f4215076706c95a17a68c19322ee916e40a3acd081a8c1a1e839e0194afa57 "$@"
