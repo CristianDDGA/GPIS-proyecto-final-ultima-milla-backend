@@ -31,10 +31,9 @@ async function admin(ctx: Ctx, email = 'admin@test.com') {
   return { id: user.id, token: login.body.token as string, auth: { Authorization: `Bearer ${login.body.token}` } };
 }
 
-async function createUser(ctx: Ctx, adminAuth: { Authorization: string }, email: string, role: 'repartidor' | 'cliente' | 'admin', displayName: string) {
-  const response = await request(ctx.app).post('/auth/users').set(adminAuth).send({ email, password: USER_PASSWORD, role, displayName });
-  expect(response.status).toBe(201);
-  return response.body.user as { id: string };
+// No hay endpoint para crear usuarios: las cuentas de prueba se siembran con el caso de uso interno.
+async function createUser(ctx: Ctx, _adminAuth: { Authorization: string }, email: string, role: 'repartidor' | 'cliente', displayName: string) {
+  return ctx.authModule.useCases.registerByAdmin({ role: 'personal' }, { email, password: USER_PASSWORD, role, displayName });
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -146,11 +145,10 @@ describe('Gestión de usuarios para el administrador (en memoria)', () => {
     expect((await request(ctx.app).patch(`/auth/users/${driver.id}`).set(boss.auth).send({ isActive: false })).status).toBe(200);
   });
 
-  test('nunca se desactiva al último administrador activo (regla del repositorio)', async () => {
+  test('el único administrador no se desactiva y no se puede crear un segundo (regla del repositorio)', async () => {
     const ctx = build();
     const first = await admin(ctx);
-    const second = await admin(ctx, 'segundo@test.com');
-    expect(await ctx.repository.setUserActive(second.id, false)).toBe('OK');
+    await expect(admin(ctx, 'segundo@test.com')).rejects.toMatchObject({ code: 'ADMIN_ALREADY_EXISTS' });
     expect(await ctx.repository.setUserActive(first.id, false)).toBe('LAST_ADMIN');
     expect(await ctx.repository.setUserActive('11111111-1111-4111-8111-111111111111', false)).toBe('NOT_FOUND');
   });

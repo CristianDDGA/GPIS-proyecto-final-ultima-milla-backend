@@ -23,6 +23,7 @@ const STATUS_BY_CODE: Record<AuthErrorCode, number> = {
   GOOGLE_NOT_ENABLED: 503,
   GOOGLE_NOT_ALLOWED: 403,
   EMAIL_ALREADY_EXISTS: 409,
+  ADMIN_ALREADY_EXISTS: 409,
   PERSISTENCE_UNAVAILABLE: 503,
 };
 
@@ -131,24 +132,6 @@ export function createAuthRouter(
       const input = bodyObject(request);
       const session = await useCases.loginWithGoogle({ idToken: input['idToken'] });
       response.status(200).json(session);
-    }),
-  );
-
-  router.post(
-    '/users',
-    route(async (request, response) => {
-      const claims = await extractBearerToken(request, tokens, revocationStore);
-      const input = bodyObject(request);
-      const user = await useCases.registerByAdmin(
-        { role: claims.role, id: claims.sub },
-        {
-          email: input['email'],
-          password: input['password'],
-          role: input['role'],
-          displayName: input['displayName'],
-        },
-      );
-      response.status(201).json({ user });
     }),
   );
 

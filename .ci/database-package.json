@@ -1,6 +1,6 @@
 {
-    "source": "db-proyecto auth + revocation + email verification + user activation + courier applications + store and flows packages (010_store.sql, 011_flows.sql, 012_consistency_definer.sql, 013_coordinates.sql, 014_google_login.sql, 015_profile_zone_coverage.sql, 016_route_optimization.sql)",
-    "sha256": "8e0e5e7012ab406e79dee58b6eeb2758018d091db57ec930e9ada0c8b221f3c7",
+    "source": "db-proyecto auth + revocation + email verification + user activation + courier applications + store and flows packages (010_store.sql, 011_flows.sql, 012_consistency_definer.sql, 013_coordinates.sql, 014_google_login.sql, 015_profile_zone_coverage.sql, 016_route_optimization.sql, 017_single_admin.sql)",
+    "sha256": "318dccc3bb1d4b479e35e648e59c67684901be8a9270ab485cd6214b0a9e498b",
     "files": {
         "compose.test.yaml": "2e0e518c3387b9ad8ebb54fc7514d2962aafec7d1421555d8e39ac0372530145",
         "database/init/00-bootstrap.sh": "94d55f9bc9694ab3b2dee113e9b8393b9a81b28129d18cd49c875499d9173cf5",
@@ -20,16 +20,18 @@
         "database/migrations/014_google_login.sql": "5d825248e672654dfdf834266de15a194c39bcf60cf859d15428d037387cf989",
         "database/migrations/015_profile_zone_coverage.sql": "e62baad61f9ed86dd7b0f8743de2fb8b9998929bd94be5b25988bcf48c2bffd7",
         "database/migrations/016_route_optimization.sql": "e42640a196fd2e0ddb7d09b9a0b93efce499f5cee280e10a80c610d86a5e531b",
+        "database/migrations/017_single_admin.sql": "f4daf846d35477f0cb683c9a0b24ee057e7b05873b20b43f66888de40de8b155",
         "database/scripts/migrate.sh": "75f606a3b834727c94f183895a58bd04766f2becd24862dadbe53c68cdda515c",
         "database/seeds/demo.sql": "1dafe59880ac8048ff8d6efef562ce1c0f1726766fbfa058f9231444fd6893b7",
         "database/tests/integration.sql": "51d4f4cfa28738916ccab505d3131d38c350731f10d4115c004bff660c1c0016",
-        "database/tests/run.sh": "d916ee66d6f6ab3876e299fe8f116d1816460226dcbc2eef963cfa1170068394",
+        "database/tests/run.sh": "c8ebd88f81e639152c88e7834cf28480e308946e6d2d25ab17960d4469a334ea",
         "database/tests/store.sql": "8656fc804ca3768c688f7381f5b6caa7a598bc4f422ec2641d932caa153cfc4b",
         "database/tests/store-race.sh": "87f03c69de5c7f6a6e6095d7fb5e1f8119ad052d097447c3a1847e6093358b01",
         "database/tests/flows.sql": "a6b2133e5bca91ac8d79c2b01343e4c990b0c57df4e371a0f8604137a4b4c897",
         "database/tests/google.sql": "87bff8fff65cc7cba720d2e15d8aaf6c63d66b01abe20b55134d2c39baa4fc35",
         "database/tests/profile_zones.sql": "e162af60b7bb1c33bac3b51e2a2dd55152675c32c155f0ad12275bedd9f6de92",
         "database/tests/routing.sql": "429ebc0e3f58b22bb7b907748590e8094cdf64f1408a766b125404958f39d945",
+        "database/tests/single_admin.sql": "c8acfdcc8622c426d41b77aedd2eab53a1b7126de4ca9ce56d6332d4a0c6ea64",
         "database/tests/flows-race.sh": "b5a4968357980845f2a35c38ac0c86ea6404fb234fc5ec4a7e50031d7308fb3d"
     },
     "postgresImage": "postgres@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873"

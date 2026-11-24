@@ -4,6 +4,8 @@ import { createApp } from '../../src/bootstrap/create-app.js';
 import { createPersistedApp } from '../../src/bootstrap/create-persisted-app.js';
 import { createDatabaseClient } from '../../src/bootstrap/database.js';
 import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypto/hmac-jwt.token-service.js';
+import { CourierUseCases } from '../../src/modules/couriers/application/courier.use-cases.js';
+import { PrismaCourierRepository } from '../../src/modules/couriers/infrastructure/postgres/prisma-courier.repository.js';
 import { realDatabase, resetTestData } from './database.fixture.js';
 
 const WEB_ORIGIN = 'http://127.0.0.1:5173';
@@ -90,8 +92,9 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
     expect(plan.body.routeIds).toHaveLength(1);
     const routeId = plan.body.routeIds[0] as string;
 
-    const courier = await request(app).post('/couriers').set('Authorization', `Bearer ${adminToken}`).send({ displayName: 'Repartidor integración', maxOrdersPerTrip: 4 });
-    expect(courier.status).toBe(201);
+    // El conductor se siembra por el caso de uso: no hay alta por HTTP (nace al aprobar una solicitud).
+    const courier = { body: await new CourierUseCases(new PrismaCourierRepository(database!)).create('Repartidor integración', 4) };
+    expect((await request(app).post('/couriers').set('Authorization', `Bearer ${adminToken}`).send({ displayName: 'x', maxOrdersPerTrip: 4 })).status).toBe(404);
     expect((await request(app).patch(`/couriers/${courier.body.id}/availability`).set('Authorization', `Bearer ${adminToken}`).send({ isAvailable: true })).status).toBe(200);
 
     const assignment = await request(app).post('/courier-assignments').set('Authorization', `Bearer ${adminToken}`).send({ routeId, courierId: courier.body.id });
@@ -112,7 +115,7 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
     expect(malformedPlan.status).toBe(400);
     expectEnvelope(malformedPlan.body, 'VALIDATION_ERROR');
 
-    const malformedCourier = await request(app).post('/couriers').set('Authorization', `Bearer ${adminToken}`).set('Content-Type', 'application/json').send('{"x":');
+    const malformedCourier = await request(app).patch(`/couriers/${randomUUID()}/availability`).set('Authorization', `Bearer ${adminToken}`).set('Content-Type', 'application/json').send('{"x":');
     expect(malformedCourier.status).toBe(400);
     expectEnvelope(malformedCourier.body, 'VALIDATION_ERROR');
 

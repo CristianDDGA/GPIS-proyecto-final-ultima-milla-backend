@@ -242,11 +242,10 @@ describe('Solicitud de conductor · permisos (en memoria)', () => {
     const ctx = build();
     const boss = await admin(ctx);
     const client = await customer(ctx);
-    const driverUser = await request(ctx.app).post('/auth/users').set(boss.auth)
-      .send({ email: 'conductor@correo.ficticio.com', password: USER_PASSWORD, role: 'repartidor', displayName: 'Pedro Conductor' });
+    await ctx.authModule.useCases.registerByAdmin({ role: 'personal' }, { email: 'conductor@correo.ficticio.com', password: USER_PASSWORD, role: 'repartidor', displayName: 'Pedro Conductor' });
     const driverLogin = await request(ctx.app).post('/auth/login').send({ email: 'conductor@correo.ficticio.com', password: USER_PASSWORD });
     const driver = bearer(driverLogin.body.token);
-    expect(driverUser.status).toBe(201);
+    expect(driverLogin.status).toBe(200);
 
     for (const [method, path] of [['get', '/courier-applications/me'], ['get', '/courier-applications'], ['post', '/courier-applications/me/submit']] as const) {
       expect((await request(ctx.app)[method](path)).status).toBe(401);

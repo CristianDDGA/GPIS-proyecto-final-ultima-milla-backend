@@ -26,6 +26,14 @@ function build(options: { emailVerificationRequired?: boolean; now?: () => numbe
   return { app, repository, emails, authModule };
 }
 
+/** Siembra una cuenta (no hay endpoint HTTP para crear usuarios): conductor, cliente verificado, etc. */
+async function seedUser(
+  ctx: ReturnType<typeof build>,
+  input: { email: string; password: string; role: 'repartidor' | 'cliente'; displayName?: string },
+) {
+  return ctx.authModule.useCases.registerByAdmin({ role: 'personal' }, input);
+}
+
 async function adminToken(ctx: ReturnType<typeof build>): Promise<string> {
   await ctx.authModule.useCases.registerByAdmin(
     { role: 'personal' },
@@ -172,13 +180,11 @@ describe('Auth HTTP · registro y verificación de correo (en memoria)', () => {
     expect(ctx.emails.sent).toHaveLength(0);
   });
 
-  test('las cuentas creadas por un administrador (conductor, admin) nacen verificadas y entran sin código', async () => {
+  test('las cuentas sembradas por el sistema (conductor, admin) nacen verificadas y entran sin código', async () => {
     const ctx = build();
-    const token = await adminToken(ctx);
-    const created = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'conductor.demo@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
-    expect(created.status).toBe(201);
-    expect(created.body.user.emailVerified).toBe(true);
+    await adminToken(ctx);
+    const created = await seedUser(ctx, { email: 'conductor.demo@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
+    expect(created.emailVerified).toBe(true);
     expect(ctx.emails.sent).toHaveLength(0);
     const login = await request(ctx.app).post('/auth/login').send({ email: 'conductor.demo@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026' });
     expect(login.status).toBe(200);
@@ -200,17 +206,26 @@ describe('Auth HTTP · login, sesión y administración (en memoria)', () => {
     expect(me.body.user.email).toBe('cliente2@test.com');
   });
 
-  test('POST /auth/users permite solo a admin crear repartidor/admin y rechaza clientes (403)', async () => {
+  test('no existe POST /auth/users: ni el admin ni un cliente pueden crear cuentas por HTTP', async () => {
     const ctx = build();
     const customer = await verifiedCustomer(ctx, 'cliente3@test.com');
-    const forbidden = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${customer.token}`)
-      .send({ email: 'driver@test.com', password: 'Faro-Verde-Mar-2026', role: 'repartidor' });
-    expect(forbidden.status).toBe(403);
+    const body = { email: 'driver@test.com', password: 'Faro-Verde-Mar-2026', role: 'repartidor', displayName: 'Conductor Uno' };
+    const byCustomer = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${customer.token}`).send(body);
+    expect(byCustomer.status).toBe(404);
     const token = await adminToken(ctx);
-    const created = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'driver@test.com', password: 'Faro-Verde-Mar-2026', role: 'repartidor', displayName: 'Conductor Uno' });
-    expect(created.status).toBe(201);
-    expect(created.body.user.role).toBe('repartidor');
+    const byAdmin = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`).send(body);
+    expect(byAdmin.status).toBe(404);
+    expect((await request(ctx.app).post('/auth/login').send({ email: 'driver@test.com', password: 'Faro-Verde-Mar-2026' })).status).toBe(401);
+  });
+
+  test('el sistema solo admite un administrador: el segundo se rechaza con ADMIN_ALREADY_EXISTS', async () => {
+    const ctx = build();
+    await adminToken(ctx);
+    await expect(
+      ctx.authModule.useCases.registerByAdmin({ role: 'personal' }, { email: 'otro.admin@test.com', password: 'Torre-Azul-Cobre-2027', role: 'admin' }),
+    ).rejects.toMatchObject({ code: 'ADMIN_ALREADY_EXISTS' });
+    // Los demás roles siguen pudiéndose sembrar.
+    await expect(seedUser(ctx, { email: 'driver2@test.com', password: 'Faro-Verde-Mar-2026', role: 'repartidor' })).resolves.toMatchObject({ role: 'repartidor' });
   });
 
   test('POST /auth/logout revoca el token actual e impide reutilizarlo (401)', async () => {
@@ -263,9 +278,7 @@ describe('Auth HTTP · recuperación y cambio de clave (en memoria)', () => {
     expect(ctx.emails.sent).toHaveLength(1);
 
     // Un conductor creado por el admin (correo ficticio) no recibe códigos de recuperación.
-    const token = await adminToken(ctx);
-    await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor' });
+    await seedUser(ctx, { email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor' });
     ctx.emails.sent.length = 0;
     expect((await request(ctx.app).post('/auth/forgot-password').send({ email: 'conductor@ficticio.com' })).status).toBe(202);
     expect(ctx.emails.sent).toHaveLength(0);
@@ -310,9 +323,8 @@ describe('Auth HTTP · recuperación y cambio de clave (en memoria)', () => {
   test('el admin restablece la clave de un conductor; clientes y conductores no pueden', async () => {
     const ctx = build();
     const token = await adminToken(ctx);
-    const driver = await request(ctx.app).post('/auth/users').set('Authorization', `Bearer ${token}`)
-      .send({ email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
-    const driverId = driver.body.user.id as string;
+    const driver = await seedUser(ctx, { email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
+    const driverId = driver.id;
     const driverSession = await request(ctx.app).post('/auth/login').send({ email: 'conductor@ficticio.com', password: 'Ruta-Norte-Lluvia-2026' });
     await new Promise((resolve) => setTimeout(resolve, 1100));
 

@@ -271,6 +271,10 @@ export class PrismaAuthRepository implements AuthRepository {
       if (error instanceof AuthError) throw error;
       const sqlState = getSqlState(error);
       if (sqlState === '23505' || sqlState === 'P2002') {
+        // Migración 017: la función rechaza un segundo administrador con este mensaje.
+        if (input.role === 'personal' && String(error).includes('ADMIN_ALREADY_EXISTS')) {
+          throw new AuthError('ADMIN_ALREADY_EXISTS');
+        }
         throw new AuthError('EMAIL_ALREADY_EXISTS');
       }
       if (sqlState === '22023') {

@@ -35,6 +35,8 @@ export interface GoogleHarness {
   readonly google: FakeGoogleVerifier;
   /** Cantidad de cuentas con ese correo (para comprobar que no se duplican). */
   readonly countAccounts: (email: string) => Promise<number>;
+  /** Siembra una cuenta de administrador o conductor (no hay endpoint HTTP para crearlas) con esa clave. */
+  readonly seedAccount: (email: string, role: 'admin' | 'repartidor', password: string) => Promise<void>;
 }
 
 export interface GoogleHarnessOptions { readonly googleEnabled?: boolean }
@@ -59,9 +61,6 @@ export function defineGoogleLoginSuite(create: (options?: GoogleHarnessOptions) 
     expect(verified.status).toBe(200);
     return verified.body.user as { id: string };
   }
-
-  const createByAdmin = (email: string, role: 'admin' | 'repartidor') =>
-    api().post('/auth/users').set(bearer(h.adminToken)).send({ email, password: ADMIN_PASSWORD, role, displayName: 'Persona Prueba' });
 
   describe('Inicio de sesión con Google', () => {
     it('sin Client ID configurado responde 503 y no rompe nada', async () => {
@@ -140,8 +139,8 @@ export function defineGoogleLoginSuite(create: (options?: GoogleHarnessOptions) 
     });
 
     it('nunca crea ni vincula administradores ni conductores', async () => {
-      expect((await createByAdmin('jefe@test.com', 'admin')).status).toBe(201);
-      expect((await createByAdmin('conductor@test.com', 'repartidor')).status).toBe(201);
+      await h.seedAccount('jefe@test.com', 'admin', ADMIN_PASSWORD);
+      await h.seedAccount('conductor@test.com', 'repartidor', ADMIN_PASSWORD);
       for (const [sub, email] of [['6006', 'jefe@test.com'], ['6007', 'conductor@test.com']] as const) {
         const response = await loginWithGoogle(h.google.tokenFor({ sub, email }));
         expect(response.status).toBe(403);
