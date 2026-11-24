@@ -65,12 +65,13 @@ export function createApp(dependencies: AppDependencies) {
     response.setHeader('Cache-Control', 'no-store');
     next();
   });
+  const allowedOrigins = allowedWebOrigins(dependencies.webOrigin);
   app.use((request, response, next) => {
     const origin = request.get('origin');
-    const originAllowed = origin === dependencies.webOrigin;
+    const originAllowed = origin !== undefined && allowedOrigins.has(origin);
 
     if (originAllowed) {
-      response.setHeader('Access-Control-Allow-Origin', dependencies.webOrigin);
+      response.setHeader('Access-Control-Allow-Origin', origin);
       response.setHeader('Vary', 'Origin');
       response.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Idempotency-Key');
@@ -139,4 +140,21 @@ export function createApp(dependencies: AppDependencies) {
   app.use(fallbackErrorHandler);
 
   return app;
+}
+
+const LOOPBACK_TWINS: Readonly<Record<string, string>> = { localhost: '127.0.0.1', '127.0.0.1': 'localhost' };
+
+/**
+ * Orígenes aceptados por CORS: WEB_ORIGIN y, solo en desarrollo local, su gemelo de loopback
+ * (localhost <-> 127.0.0.1, mismo protocolo y puerto), porque el navegador los trata como sitios distintos.
+ */
+export function allowedWebOrigins(webOrigin: string): ReadonlySet<string> {
+  const origins = new Set([webOrigin]);
+  const parsed = new URL(webOrigin);
+  const twin = LOOPBACK_TWINS[parsed.hostname];
+  if (twin !== undefined) {
+    parsed.hostname = twin;
+    origins.add(parsed.origin);
+  }
+  return origins;
 }
