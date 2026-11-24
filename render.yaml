@@ -4,7 +4,8 @@ services:
     name: logistica-api
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    # NODE_ENV=production hace que npm ci omita las devDependencies (typescript, @types/*) y el build falle.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /health
     autoDeploy: false
