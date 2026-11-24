@@ -186,6 +186,13 @@ Los usuarios traen su hash de contraseña, así que seguirían entrando con la m
 
 ## 7. Problemas comunes
 
+- **No llegan los correos (códigos de verificación, recuperar contraseña) en Render gratuito:** el plan gratuito bloquea la
+  salida por los puertos SMTP 25, 465 y 587. Usa `SMTP_PORT=2525` (Brevo lo admite con STARTTLS). La API no lo muestra al
+  usuario: el registro responde bien aunque el envío falle, y el error queda solo en los registros (`No se pudo enviar el
+  código`). Si algún día 2525 también se bloquea, la salida es la API HTTPS del proveedor o un plan de pago.
+- **Una cuenta que se registró por correo y no confirmó el código no puede entrar con Google:** Google solo se vincula a
+  cuentas confirmadas por código. Debe confirmar el correo (reenviar código) y luego ya puede usar Google.
+
 - **El proyecto gratuito de Supabase se pausa tras una semana sin uso.** Despiértalo antes de una demostración.
 - **`self-signed certificate in certificate chain`:** usa `DB_SSL=require`, o `verify` con el CA oficial en `DB_SSL_CA`.
 - **`La API requiere una conexión PostgreSQL con el rol logistica_app`:** el usuario de `DATABASE_URL` debe ser

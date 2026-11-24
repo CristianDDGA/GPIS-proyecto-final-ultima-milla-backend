@@ -34,8 +34,10 @@ services:
         generateValue: true
       - key: SMTP_HOST
         sync: false
+      # El plan gratuito de Render bloquea la salida por los puertos SMTP 25, 465 y 587: con 587 los correos nunca salen.
+      # Brevo también atiende STARTTLS en el 2525, que no está bloqueado.
       - key: SMTP_PORT
-        value: "587"
+        value: "2525"
       - key: SMTP_SECURE
         value: "false"
       - key: SMTP_USER
