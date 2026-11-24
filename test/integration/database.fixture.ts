@@ -6,6 +6,9 @@ import { PrismaOrderZoneLookup } from '../../src/modules/orders/infrastructure/p
 import { logisticaOrderSql } from '../../src/modules/orders/infrastructure/postgres/logistica-order.sql.js';
 import { InMemoryZoneRepository } from '../../src/modules/zones/infrastructure/postgres/in-memory-zone.repository.js';
 import { InMemoryOrderRepository } from '../../src/modules/orders/infrastructure/postgres/in-memory-order.repository.js';
+import { orderZonePortFrom } from '../../src/modules/orders/infrastructure/zone-repository.lookup.js';
+import type { ZoneRepository } from '../../src/modules/zones/application/ports/zone.repository.port.js';
+import { Zone } from '../../src/modules/zones/domain/zone.entity.js';
 
 export const realDatabase = Boolean(process.env.TEST_DATABASE_URL);
 const docker = process.platform === 'win32' ? 'docker.exe' : 'docker';
@@ -35,6 +38,24 @@ export function resetTestData(): void {
 export function loadRepresentativeFixture(): void {
   resetTestData();
   psql(['-f','/workspace/database/seeds/demo.sql']);
+  coverAllTestZones();
+}
+
+/** Cobertura de prueba (Quito, 50 km): un círculo que contiene los puntos que usan las pruebas. */
+export const TEST_ZONE_COVERAGE = { latitude: -0.1807, longitude: -78.4678, radiusKm: 50 } as const;
+
+/** Las zonas de la semilla no traen cobertura; una zona sin ella no recibe pedidos, así que se les da una. */
+export function coverAllTestZones(): void {
+  const { latitude, longitude, radiusKm } = TEST_ZONE_COVERAGE;
+  psql(['-c',`UPDATE logistica.zones SET center_latitude=${latitude}, center_longitude=${longitude}, coverage_radius_km=${radiusKm} WHERE center_latitude IS NULL;`]);
+}
+
+/** Crea una zona CON cobertura: sin ella no es operativa y no recibe pedidos. Sirve igual en memoria y en PostgreSQL. */
+export async function createCoveredZone(zones: ZoneRepository, name: string): Promise<Zone> {
+  const created = await zones.create(Zone.prepare({ name }));
+  const covered = await zones.setCoverage(created.id, { ...TEST_ZONE_COVERAGE });
+  if (covered === null) throw new Error('No se pudo fijar la cobertura de la zona de prueba.');
+  return covered;
 }
 
 export function setTestZoneInactive(id: string): void {
@@ -45,7 +66,7 @@ export function setTestZoneInactive(id: string): void {
 export function integrationRepositories() {
   if (!realDatabase) {
     const zoneRepository = new InMemoryZoneRepository();
-    return {zoneRepository,orderRepository:new InMemoryOrderRepository(),orderZoneLookup:zoneRepository};
+    return {zoneRepository,orderRepository:new InMemoryOrderRepository(),orderZoneLookup:orderZonePortFrom(zoneRepository)};
   }
   resetTestData();
   database ??= createDatabaseClient(process.env.TEST_DATABASE_URL!);

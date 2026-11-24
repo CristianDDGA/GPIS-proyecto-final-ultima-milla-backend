@@ -40,6 +40,9 @@ export class CreateOrderUseCase {
     if (zone.active === false) {
       throw new OrderConflictError('La zona seleccionada está inactiva.');
     }
+    if (!zone.hasCoverage) {
+      throw new OrderConflictError('La zona seleccionada aún no tiene cobertura definida en el mapa y no recibe pedidos.');
+    }
 
     return await this.orderRepository.create(order);
   }

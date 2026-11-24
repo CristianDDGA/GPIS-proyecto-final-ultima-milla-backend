@@ -4,6 +4,18 @@ Cada zona puede tener un **centro** (latitud y longitud dentro de Ecuador) y un 
 a qué zona pertenece un punto del mapa y el cliente ya no tiene que elegir la zona a mano. Una zona sin cobertura sigue
 funcionando como antes.
 
+## Reglas de las zonas
+
+- **Nombre:** de 3 a 40 caracteres, al menos 3 letras, **único** sin importar mayúsculas ni espacios (`409 DATA_CONFLICT`; también lo garantiza un índice en la base, migración 018). El texto no puede saber si el nombre «tiene sentido»: lo que da realidad a una zona es su cobertura.
+- **Una zona sin cobertura no es operativa:** no recibe pedidos ni direcciones. Ver «Regla de entrega» en `store.md`.
+
+## Rutas: límites al planificar
+
+`POST /route-plans` y `POST /late-order-placements` (solo al crear; las rutas ya guardadas no se revalidan):
+
+- `capacityLimit`: entero de 1 a **20**.
+- `serviceDate` (solo planificación): desde **hoy** hasta **60 días** adelante, en hora de Ecuador. Una fecha pasada o más lejana responde `400 VALIDATION_ERROR`.
+
 ## Objeto zona
 
 Toda respuesta de zona incluye `coverage` (`null` si no tiene):

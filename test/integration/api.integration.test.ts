@@ -80,6 +80,8 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
   it('flujo completo: zona → pedidos → planificación → repartidor → asignación → ruta del repartidor', async () => {
     const zone = await request(app).post('/zones').set('Authorization', `Bearer ${adminToken}`).send({ name: 'Zona integración' });
     expect(zone.status).toBe(201);
+    // Una zona solo recibe pedidos si tiene cobertura definida en el mapa.
+    expect((await request(app).put(`/zones/${zone.body.id}/coverage`).set('Authorization', `Bearer ${adminToken}`).send({ coverage: { latitude: -0.1807, longitude: -78.4678, radiusKm: 5 } })).status).toBe(200);
     for (const time of ['09:00', '10:00']) {
       const order = await request(app).post('/orders').set('Authorization', `Bearer ${adminToken}`)
         .send({ zoneId: zone.body.id, deliveryAddress: `Calle ${time.replace(':', '')}`, deliveryDate: serviceDate, deliveryTime: time });
@@ -131,6 +133,8 @@ describeReal('API unificada · un solo servidor con PostgreSQL real', () => {
   it('POST /routes/:id/cancel cancela una ruta planificada (INT-08) y POST /auth/logout revoca el JWT en Postgres (AUT-05)', async () => {
     const zone = await request(app).post('/zones').set('Authorization', `Bearer ${adminToken}`).send({ name: 'Zona Cancelación' });
     expect(zone.status).toBe(201);
+    // Una zona solo recibe pedidos si tiene cobertura definida en el mapa.
+    expect((await request(app).put(`/zones/${zone.body.id}/coverage`).set('Authorization', `Bearer ${adminToken}`).send({ coverage: { latitude: -0.1807, longitude: -78.4678, radiusKm: 5 } })).status).toBe(200);
     const order = await request(app)
       .post('/orders')
       .set('Authorization', `Bearer ${adminToken}`)

@@ -1,4 +1,6 @@
 import { StoreError } from '../domain/store.errors.js';
+import { todayInEcuador } from '../../../shared/ecuador-date.js';
+import type { ZoneDeliveryGuard } from '../../../shared/zone-delivery-guard.port.js';
 import {
   bodyObject,
   parsePaging,
@@ -22,10 +24,7 @@ import type { StoreOrderDetail } from '../domain/store.types.js';
 import type { FlowsRepository } from './ports/flows.ports.js';
 import type { ProductImageStorage, StoreOrderRepository } from './ports/store.ports.js';
 
-/** Fecha de hoy en Ecuador (UTC-5 todo el año). */
-export function todayInEcuador(now: Date = new Date()): string {
-  return new Date(now.getTime() - 5 * 3_600_000).toISOString().slice(0, 10);
-}
+export { todayInEcuador };
 
 const SCHEDULE_MESSAGES = {
   slot_invalid: 'La franja elegida no es válida: usa una hora en punto dentro del horario de la tienda.',
@@ -39,6 +38,7 @@ export class StoreFlowsUseCases {
     private readonly flows: FlowsRepository,
     private readonly orders: StoreOrderRepository,
     private readonly images: ProductImageStorage,
+    private readonly zoneGuard: ZoneDeliveryGuard,
     private readonly now: () => Date = () => new Date(),
   ) {}
 
@@ -150,13 +150,33 @@ export class StoreFlowsUseCases {
 
   async createAddress(actor: FlowActor, body: unknown) {
     StoreFlowsUseCases.role(actor, 'cliente');
-    return this.flows.createAddress(actor.id, parseNewAddress(bodyObject(body)));
+    const address = parseNewAddress(bodyObject(body));
+    await this.assertDeliverable(address.zoneId, address.latitude, address.longitude);
+    return this.flows.createAddress(actor.id, address);
   }
 
   async updateAddress(actor: FlowActor, id: unknown, body: unknown) {
     StoreFlowsUseCases.role(actor, 'cliente');
     const { patch, expectedVersion } = parseAddressPatch(bodyObject(body));
-    return this.flows.updateAddress(actor.id, validateUuid(id, 'La dirección'), patch, expectedVersion);
+    const addressId = validateUuid(id, 'La dirección');
+    // Solo si el cambio toca la zona o el punto: se juzga el resultado final (lo guardado mezclado con el cambio).
+    if (patch.zoneId !== undefined || patch.latitude !== undefined || patch.longitude !== undefined) {
+      const current = (await this.flows.listAddresses(actor.id)).find((item) => item.id === addressId);
+      if (current !== undefined) {
+        await this.assertDeliverable(
+          patch.zoneId ?? current.zoneId,
+          patch.latitude !== undefined ? patch.latitude : current.latitude,
+          patch.longitude !== undefined ? patch.longitude : current.longitude,
+        );
+      }
+    }
+    return this.flows.updateAddress(actor.id, addressId, patch, expectedVersion);
+  }
+
+  /** La zona debe tener cobertura y el punto del mapa debe caer dentro de ella. */
+  private async assertDeliverable(zoneId: string, latitude: number | null, longitude: number | null): Promise<void> {
+    const issue = await this.zoneGuard.check(zoneId, { latitude, longitude });
+    if (issue !== null) throw new StoreError(issue);
   }
 
   async deleteAddress(actor: FlowActor, id: unknown) {

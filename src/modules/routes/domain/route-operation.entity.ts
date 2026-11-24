@@ -1,5 +1,5 @@
 import { RouteIntegrityError } from './route.errors.js';
-import { validateCapacityLimit, validateOrderIdList, validateUuid } from './route.validation.js';
+import { validateOrderIdList, validatePlanningCapacity, validateUuid } from './route.validation.js';
 
 export const LATE_PLACEMENT_PENDING_REASON = 'NO_AVAILABLE_COURIER' as const;
 
@@ -91,7 +91,7 @@ export const RouteOperations = {
     return {
       idempotencyKey: validateUuid(input.idempotencyKey, 'Idempotency-Key'),
       orderId: validateUuid(input.orderId, 'orderId'),
-      capacityLimit: validateCapacityLimit(input.capacityLimit),
+      capacityLimit: validatePlanningCapacity(input.capacityLimit),
     };
   },
 

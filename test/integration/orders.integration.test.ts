@@ -2,7 +2,7 @@ import request from 'supertest';
 import { createApp } from '../../src/bootstrap/create-app.js';
 import type { ZoneRepository } from '../../src/modules/zones/application/ports/zone.repository.port.js';
 import type { OrderRepository } from '../../src/modules/orders/application/ports/order.repository.port.js';
-import { integrationRepositories, closeIntegrationDatabase, realDatabase, loadRepresentativeFixture, setTestZoneInactive } from './database.fixture.js';
+import { integrationRepositories, closeIntegrationDatabase, realDatabase, loadRepresentativeFixture, setTestZoneInactive, createCoveredZone } from './database.fixture.js';
 import { Zone } from '../../src/modules/zones/domain/zone.entity.js';
 
 describe('Suite de Integración API / Persistencia - Pedidos', () => {
@@ -24,7 +24,7 @@ describe('Suite de Integración API / Persistencia - Pedidos', () => {
     });
 
     // Zona válida base para las pruebas de pedidos
-    validZone = await zoneRepository.create(Zone.prepare({ name: 'Centro' }));
+    validZone = await createCoveredZone(zoneRepository, 'Centro');
   });
 
   afterAll(closeIntegrationDatabase);
@@ -173,6 +173,20 @@ describe('Suite de Integración API / Persistencia - Pedidos', () => {
       expect((await request(app).get('/orders')).body.items).toHaveLength(0);
     });
 
+    it('rechaza una zona sin cobertura definida con 409 y no inserta el pedido', async () => {
+      const uncovered = await zoneRepository.create(Zone.prepare({ name: 'Sin cobertura' }));
+      const tomorrow = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + 86_400_000));
+      const result = await request(app).post('/orders').send({ zoneId: uncovered.id, deliveryAddress: 'Av. 9 de Octubre 123 y Malecón', deliveryDate: tomorrow, deliveryTime: '10:00' });
+      expect(result.status).toBe(409);
+      expect(result.body.code).toBe('DATA_CONFLICT');
+      expect(result.body.message).toMatch(/cobertura/);
+      expect((await request(app).get('/orders')).body.items).toHaveLength(0);
+      // Con la cobertura definida, la misma zona sí recibe pedidos.
+      await zoneRepository.setCoverage(uncovered.id, { latitude: -0.1807, longitude: -78.4678, radiusKm: 5 });
+      const accepted = await request(app).post('/orders').send({ zoneId: uncovered.id, deliveryAddress: 'Av. 9 de Octubre 123 y Malecón', deliveryDate: tomorrow, deliveryTime: '10:00' });
+      expect(accepted.status).toBe(201);
+    });
+
     it('debe registrar y persistir un pedido con entrega para el día de hoy (America/Guayaquil)', async () => {
       // Obtener el día actual de negocio en la zona horaria America/Guayaquil
       const todayInGuayaquil = new Intl.DateTimeFormat('en-CA', {
@@ -244,8 +258,8 @@ describe('Suite de Integración API / Persistencia - Pedidos', () => {
         validZone = centro;
       } else {
         // 1. Crear las 3 zonas de la fixture: Centro (ya creada), Norte y Sur
-        const zoneNorte = await zoneRepository.create(Zone.prepare({ name: 'Norte' }));
-        const zoneSur = await zoneRepository.create(Zone.prepare({ name: 'Sur' }));
+        const zoneNorte = await createCoveredZone(zoneRepository, 'Norte');
+        const zoneSur = await createCoveredZone(zoneRepository, 'Sur');
 
         const zones = [validZone, zoneNorte, zoneSur];
         const dates = ['2026-10-20', '2026-10-26'];

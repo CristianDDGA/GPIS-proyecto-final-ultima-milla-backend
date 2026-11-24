@@ -257,9 +257,21 @@ frontend. Las coordenadas son **opcionales**: un pedido o una dirección sin ell
 
 | Dónde | Campos nuevos | Notas |
 | --- | --- | --- |
-| `POST /store/orders` | `latitude`, `longitude` (números) | Junto a `deliveryAddress`. En modo manual se omiten (o `null`). |
-| `POST /store/addresses` | `latitude`, `longitude` | Igual. |
-| `PATCH /store/addresses/:id` | `latitude`, `longitude` | Las dos juntas: con valores cambian el pin; las dos en `null` lo quitan. Con una sola, `400`. |
+| `POST /store/orders` | `latitude`, `longitude` (números) | **Obligatorios.** Junto a `deliveryAddress`. Ver «Regla de entrega» abajo. |
+| `POST /store/addresses` | `latitude`, `longitude` | Obligatorios. |
+| `PATCH /store/addresses/:id` | `latitude`, `longitude` | Las dos juntas, siempre con valores: no se puede quitar el pin (`null` responde `422 PIN_REQUIRED`). Con una sola, `400`. |
+
+### Regla de entrega (la decide el servidor)
+
+Un pedido o una dirección guardada solo es válido si la zona **tiene cobertura** y el punto del mapa **cae dentro de ella**. Se comprueba antes de reservar stock o franja, así que un rechazo no consume nada. Al editar una dirección se juzga el resultado final (lo guardado más el cambio).
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `ZONE_NOT_OPERATIONAL` | 422 | La zona existe pero aún no tiene cobertura definida: no recibe pedidos. |
+| `PIN_REQUIRED` | 422 | Falta el punto del mapa. |
+| `ZONE_OUT_OF_COVERAGE` | 422 | El punto cae fuera de la cobertura de esa zona. |
+
+Una zona inexistente sigue respondiendo `404 ZONE_NOT_FOUND` y una inactiva `409` con `details.reason = zone_inactive`. Los pedidos del administrador (`POST /orders`) exigen que la zona tenga cobertura (`409`); no llevan pin.
 
 Reglas (`400 VALIDATION_ERROR` si no se cumplen): las dos coordenadas juntas o ninguna; deben ser números; deben caer dentro de Ecuador
 (latitud −5.1 a 1.5 y longitud −92.5 a −75.0, incluye Galápagos), para atrapar pines mal puestos. La misma `Idempotency-Key` con otro pin

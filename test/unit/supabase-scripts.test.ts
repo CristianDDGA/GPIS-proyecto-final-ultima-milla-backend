@@ -12,7 +12,7 @@ test('el paquete canónico trae todas las migraciones en orden y con su checksum
   const migrations = loadCanonicalMigrations(ZIP, MANIFEST);
   assert.deepEqual(
     migrations.map((migration) => migration.name.slice(0, 3)),
-    ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017'],
+    ['001', '002', '003', '004', '005', '006', '007', '008', '009', '010', '011', '012', '013', '014', '015', '016', '017', '018'],
   );
   for (const migration of migrations) {
     assert.equal(migration.checksum, createHash('sha256').update(migration.sql).digest('hex'));

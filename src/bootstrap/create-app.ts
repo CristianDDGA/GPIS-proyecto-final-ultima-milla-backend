@@ -3,6 +3,7 @@ import type { ZoneRepository } from '../modules/zones/application/ports/zone.rep
 import { createZonesModule } from '../modules/zones/index.js';
 import type { OrderRepository } from '../modules/orders/application/ports/order.repository.port.js';
 import { createOrdersModule } from '../modules/orders/index.js';
+import { orderZonePortFrom } from '../modules/orders/infrastructure/zone-repository.lookup.js';
 import { fallbackErrorHandler, jsonErrorHandler, notFoundHandler, requireJsonObject } from './json.middleware.js';
 import type { OrderZonePort } from '../modules/orders/application/ports/order-zone.port.js';
 import type { TokenRevocationStore } from '../modules/auth/application/ports/token-revocation.port.js';
@@ -119,7 +120,7 @@ export function createApp(dependencies: AppDependencies) {
   }
 
   if (dependencies.orderRepository) {
-    const zoneLookup = dependencies.orderZoneLookup ?? dependencies.zoneRepository;
+    const zoneLookup = dependencies.orderZoneLookup ?? (dependencies.zoneRepository ? orderZonePortFrom(dependencies.zoneRepository) : undefined);
     if (!zoneLookup) throw new Error('Orders requiere un puerto de consulta de zonas.');
     const ordersModule = createOrdersModule({
       orderRepository: dependencies.orderRepository,

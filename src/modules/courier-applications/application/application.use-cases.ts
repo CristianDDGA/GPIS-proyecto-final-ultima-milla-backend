@@ -4,6 +4,7 @@ import type { EmailSender } from '../../auth/application/ports/email-sender.port
 import { maskEmail, type SecurityLog } from '../../auth/application/ports/security-log.port.js';
 import type { TokenRevocationStore } from '../../auth/application/ports/token-revocation.port.js';
 import type { AppRole } from '../../auth/domain/auth-user.entity.js';
+import { MAX_ORDERS_PER_ROUTE } from '../../../shared/delivery-limits.js';
 import {
   APPLICATION_STATUSES,
   MAX_IMAGE_BYTES,
@@ -64,7 +65,7 @@ export interface ApplicationUseCaseOptions {
 }
 
 const DEFAULT_CAPACITY = 10;
-const MAX_CAPACITY = 200;
+const MAX_CAPACITY = MAX_ORDERS_PER_ROUTE;
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 const MAX_SEARCH_LENGTH = 100;

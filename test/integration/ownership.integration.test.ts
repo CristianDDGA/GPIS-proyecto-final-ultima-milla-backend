@@ -46,6 +46,8 @@ describeReal('Autorización por dueño · PostgreSQL real', () => {
     const adminToken = tokens.sign({ sub: admin.actorId, role: 'personal', authSubject: admin.authSubject, courierId: null });
     const zone = await request(app).post('/zones').set(bearer(adminToken)).send({ name: 'Zona Propiedad' });
     expect(zone.status).toBe(201);
+    // Una zona solo recibe pedidos si tiene cobertura definida en el mapa.
+    expect((await request(app).put(`/zones/${zone.body.id}/coverage`).set(bearer(adminToken)).send({ coverage: { latitude: -0.1807, longitude: -78.4678, radiusKm: 5 } })).status).toBe(200);
 
     const ana = await createCustomer('ana');
     const luis = await createCustomer('luis');

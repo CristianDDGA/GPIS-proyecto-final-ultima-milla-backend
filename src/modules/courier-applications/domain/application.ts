@@ -61,10 +61,9 @@ export function isValidIsoDate(value: string): boolean {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
-/** Fecha de hoy en Ecuador (YYYY-MM-DD). */
-export function todayInEcuador(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-}
+import { todayInEcuador } from '../../../shared/ecuador-date.js';
+
+export { todayInEcuador };
 
 export function subtractYears(isoDate: string, years: number): string {
   const [year, month, day] = isoDate.split('-').map(Number) as [number, number, number];

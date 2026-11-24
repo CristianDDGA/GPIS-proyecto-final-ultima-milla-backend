@@ -287,6 +287,10 @@ describeReal('Sprint 02 · Routes · S2-CP-001 agrupación por zona/fecha y capa
       ['fecha con formato inválido', 'uuid', { serviceDate: '10/11/2026', capacityLimit: 4 }],
       ['fecha imposible', 'uuid', { serviceDate: '2026-02-30', capacityLimit: 4 }],
       ['cuerpo arreglo', 'uuid', [guayaquilDate(3), 4]],
+      ['capacidad sobre el tope de 20', 'uuid', { serviceDate: guayaquilDate(3), capacityLimit: 21 }],
+      ['capacidad enorme', 'uuid', { serviceDate: guayaquilDate(3), capacityLimit: 2_147_483_647 }],
+      ['fecha pasada', 'uuid', { serviceDate: guayaquilDate(-1), capacityLimit: 4 }],
+      ['fecha a más de 60 días', 'uuid', { serviceDate: guayaquilDate(61), capacityLimit: 4 }],
     ])('rechaza %s con 400 sin crear rutas', async (_name, key, body) => {
       const zone = await createZone('Validación');
       await createOrder(zone, 'Pendiente', guayaquilDate(3), '10:00');

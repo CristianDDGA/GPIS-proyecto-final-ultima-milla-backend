@@ -1,7 +1,13 @@
+import { MAX_ORDERS_PER_ROUTE } from '../../../shared/delivery-limits.js';
+import { addDays } from '../../../shared/ecuador-date.js';
 import { RouteValidationError } from './route.errors.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const POSTGRES_INTEGER_MAX = 2_147_483_647;
+
+/** Las rutas ya guardadas no se revalidan con el tope de planificación (MAX_ORDERS_PER_ROUTE). */
+/** Cuántos días hacia adelante se puede planificar (hoy incluido). */
+export const MAX_PLANNING_DAYS_AHEAD = 60;
 
 export const DEFAULT_LIMIT = 25;
 export const MAX_LIMIT = 100;
@@ -31,6 +37,27 @@ export function validateCapacityLimit(value: unknown): number {
     throw new RouteValidationError('El campo capacityLimit debe ser un entero positivo.');
   }
   return value;
+}
+
+/** Capacidad al planificar o insertar un pedido tardío: entero de 1 a MAX_ORDERS_PER_ROUTE. */
+export function validatePlanningCapacity(value: unknown): number {
+  const capacity = validateCapacityLimit(value);
+  if (capacity > MAX_ORDERS_PER_ROUTE) {
+    throw new RouteValidationError(`El campo capacityLimit no puede superar ${MAX_ORDERS_PER_ROUTE} pedidos por ruta.`);
+  }
+  return capacity;
+}
+
+/** Fecha de servicio al planificar: desde hoy hasta MAX_PLANNING_DAYS_AHEAD días adelante (hora de Ecuador). */
+export function validatePlanningDate(value: unknown, today: string): string {
+  const date = validateServiceDate(value);
+  if (date < today) {
+    throw new RouteValidationError('No se puede planificar una fecha pasada: elige hoy o una fecha futura.');
+  }
+  if (date > addDays(today, MAX_PLANNING_DAYS_AHEAD)) {
+    throw new RouteValidationError(`Solo se puede planificar hasta ${MAX_PLANNING_DAYS_AHEAD} días hacia adelante.`);
+  }
+  return date;
 }
 
 // Complete desired stop order: a non-empty JSON array of distinct order UUIDs (identity, never UI indexes).

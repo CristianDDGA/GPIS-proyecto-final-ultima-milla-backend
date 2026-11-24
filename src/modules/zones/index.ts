@@ -14,6 +14,7 @@ export * from './application/use-cases/create-zone.use-case.js';
 export * from './application/use-cases/get-zone.use-case.js';
 export * from './application/use-cases/list-zones.use-case.js';
 export * from './application/use-cases/zone-coverage.use-cases.js';
+export * from './application/zone-delivery-guard.service.js';
 export * from './infrastructure/postgres/prisma-zone.repository.js';
 export * from './infrastructure/postgres/in-memory-zone.repository.js';
 export * from './presentation/http/zone.controller.js';
