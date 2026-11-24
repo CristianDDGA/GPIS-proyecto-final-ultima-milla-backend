@@ -30,6 +30,7 @@ export function defineStoreFlowsSuite(create: () => Promise<StoreHarness> | Stor
   async function placeOrder(productId: string, quantity = 1, price = 6999, hour = '10:00', token: string = h.customerToken) {
     const response = await api().post('/store/orders').set(bearer(token)).set('Idempotency-Key', uuid()).send({
       zoneId: h.zoneId, deliveryAddress: 'Av. 9 de Octubre 123 y Malecón', deliveryDate: futureDate(3), deliveryTime: hour,
+      latitude: h.pin.latitude, longitude: h.pin.longitude,
       items: [{ productId, quantity, unitPriceCents: price }],
     });
     expect(response.status).toBe(201);
@@ -126,6 +127,7 @@ export function defineStoreFlowsSuite(create: () => Promise<StoreHarness> | Stor
       const product = await newProduct(10, 2500);
       const response = await api().post('/store/orders').set(customer()).set('Idempotency-Key', uuid()).send({
         zoneId: h.zoneId, deliveryAddress: 'Av. 9 de Octubre 123 y Malecón', deliveryDate: futureDate(3), deliveryTime: '11:00',
+        latitude: h.pin.latitude, longitude: h.pin.longitude,
         items: [{ productId: product.id, quantity: 1, unitPriceCents: 2500 }],
       });
       expect(response.status).toBe(201);
@@ -431,7 +433,7 @@ export function defineStoreFlowsSuite(create: () => Promise<StoreHarness> | Stor
 
   // ------------------------------------------------------------------------------------------- direcciones
   describe('Libreta de direcciones', () => {
-    const base = () => ({ label: 'Casa', zoneId: h.zoneId, address: 'Av. 9 de Octubre 123 y Malecón' });
+    const base = () => ({ label: 'Casa', zoneId: h.zoneId, address: 'Av. 9 de Octubre 123 y Malecón', latitude: h.pin.latitude, longitude: h.pin.longitude });
     const addAddress = (body: object, token: string = h.customerToken) => api().post('/store/addresses').set(bearer(token)).send(body);
 
     it('crea, lista, edita y borra; la primera es la predeterminada', async () => {
@@ -609,11 +611,11 @@ export function defineStoreCoordinatesSuite(create: () => Promise<StoreHarness> 
   const place = (body: object, key: string = uuid()) => api().post('/store/orders').set(customer()).set('Idempotency-Key', key).send(body);
 
   describe('Mapa y coordenadas', () => {
-    it('un pedido con pin guarda el punto; sin pin sigue siendo válido y lo devuelve en null', async () => {
+    it('un pedido guarda el punto del mapa; sin pin se rechaza', async () => {
       const product = await newProduct();
       const manual = await place(orderBody(product.id));
-      expect(manual.status).toBe(201);
-      expect(manual.body).toMatchObject({ deliveryLatitude: null, deliveryLongitude: null });
+      expect(manual.status).toBe(422);
+      expect(manual.body.code).toBe('PIN_REQUIRED');
 
       const pinned = await place(orderBody(product.id, { deliveryTime: '11:00', latitude: -0.1807, longitude: -78.4678 }));
       expect(pinned.status).toBe(201);
@@ -649,46 +651,95 @@ export function defineStoreCoordinatesSuite(create: () => Promise<StoreHarness> 
       expect(other.body.code).toBe('IDEMPOTENCY_KEY_REUSED');
     });
 
-    it('la libreta guarda, cambia y quita el pin de una dirección', async () => {
+    it('la libreta guarda y cambia el pin de una dirección, pero no permite quitarlo ni sacarlo de la zona', async () => {
       const base = { label: 'Casa', zoneId: h.zoneId, address: 'Av. 9 de Octubre 123 y Malecón' };
       const manual = await api().post('/store/addresses').set(customer()).send(base);
-      expect(manual.status).toBe(201);
-      expect(manual.body).toMatchObject({ latitude: null, longitude: null });
-      const pinned = await api().post('/store/addresses').set(customer()).send({ ...base, label: 'Trabajo', latitude: -2.1894, longitude: -79.8891 });
-      expect(pinned.status).toBe(201);
-      expect(pinned.body).toMatchObject({ latitude: -2.1894, longitude: -79.8891 });
+      expect(manual.status).toBe(422);
+      expect(manual.body.code).toBe('PIN_REQUIRED');
+      const home = await api().post('/store/addresses').set(customer()).send({ ...base, latitude: -0.18, longitude: -78.47 });
+      expect(home.status).toBe(201);
+      expect(home.body).toMatchObject({ latitude: -0.18, longitude: -78.47 });
+      const work = await api().post('/store/addresses').set(customer()).send({ ...base, label: 'Trabajo', latitude: -0.2, longitude: -78.5 });
+      expect(work.status).toBe(201);
 
-      const moved = await api().patch(`/store/addresses/${manual.body.id}`).set(customer()).send({ expectedVersion: 1, latitude: -0.2, longitude: -78.5 });
+      const moved = await api().patch(`/store/addresses/${home.body.id}`).set(customer()).send({ expectedVersion: 1, latitude: -0.25, longitude: -78.45 });
       expect(moved.status).toBe(200);
-      expect(moved.body).toMatchObject({ latitude: -0.2, longitude: -78.5 });
-      const half = await api().patch(`/store/addresses/${manual.body.id}`).set(customer()).send({ expectedVersion: moved.body.version, latitude: -0.3 });
+      expect(moved.body).toMatchObject({ latitude: -0.25, longitude: -78.45 });
+      const half = await api().patch(`/store/addresses/${home.body.id}`).set(customer()).send({ expectedVersion: moved.body.version, latitude: -0.3 });
       expect(half.status).toBe(400);
-      const cleared = await api().patch(`/store/addresses/${manual.body.id}`).set(customer()).send({ expectedVersion: moved.body.version, latitude: null, longitude: null });
-      expect(cleared.status).toBe(200);
-      expect(cleared.body).toMatchObject({ latitude: null, longitude: null });
+      const cleared = await api().patch(`/store/addresses/${home.body.id}`).set(customer()).send({ expectedVersion: moved.body.version, latitude: null, longitude: null });
+      expect(cleared.status).toBe(422);
+      expect(cleared.body.code).toBe('PIN_REQUIRED');
       const outside = await api().post('/store/addresses').set(customer()).send({ ...base, label: 'Madrid', latitude: 40.4, longitude: -3.7 });
       expect(outside.status).toBe(400);
+      const farAway = await api().patch(`/store/addresses/${home.body.id}`).set(customer()).send({ expectedVersion: moved.body.version, latitude: -2.1894, longitude: -79.8891 });
+      expect(farAway.status).toBe(422);
+      expect(farAway.body.code).toBe('ZONE_OUT_OF_COVERAGE');
       const list = await api().get('/store/addresses').set(customer());
-      expect(list.body.items.find((item: { label: string }) => item.label === 'Trabajo')).toMatchObject({ latitude: -2.1894, longitude: -79.8891 });
+      expect(list.body.items.find((item: { label: string }) => item.label === 'Trabajo')).toMatchObject({ latitude: -0.2, longitude: -78.5 });
+      expect(list.body.items.find((item: { label: string }) => item.label === 'Casa')).toMatchObject({ latitude: -0.25, longitude: -78.45 });
     });
 
     it('el conductor y el administrador ven el destino en el mapa', async () => {
       const product = await newProduct();
       const pinned = await place(orderBody(product.id, { latitude: -0.1807, longitude: -78.4678 }));
-      const manual = await place(orderBody(product.id, { deliveryTime: '12:00' }));
-      await h.dispatch.assign([pinned.body.id, manual.body.id]);
+      const second = await place(orderBody(product.id, { deliveryTime: '12:00', latitude: -0.2, longitude: -78.5 }));
+      await h.dispatch.assign([pinned.body.id, second.body.id]);
       const route = await api().get('/store/courier/orders').set(driver());
       expect(route.status).toBe(200);
       const byId = new Map<string, { deliveryLatitude: number | null; deliveryLongitude: number | null }>(
         route.body.items.map((item: { orderId: string; deliveryLatitude: number | null; deliveryLongitude: number | null }) => [item.orderId, item]),
       );
       expect(byId.get(pinned.body.id)).toMatchObject({ deliveryLatitude: -0.1807, deliveryLongitude: -78.4678 });
-      expect(byId.get(manual.body.id)).toMatchObject({ deliveryLatitude: null, deliveryLongitude: null });
+      expect(byId.get(second.body.id)).toMatchObject({ deliveryLatitude: -0.2, deliveryLongitude: -78.5 });
 
       const board = await api().get('/store/admin/orders').set(admin());
       expect(board.status).toBe(200);
       const found = board.body.items.find((order: { id: string }) => order.id === pinned.body.id);
       expect(found).toMatchObject({ deliveryLatitude: -0.1807, deliveryLongitude: -78.4678 });
+    });
+  });
+
+  // El servidor decide: la zona debe tener cobertura y el punto del mapa debe caer dentro de ella.
+  describe('Regla de entrega: zona con cobertura y punto dentro de ella', () => {
+    const stockOf = async (productId: string): Promise<number> => (await api().get(`/store/admin/products/${productId}`).set(admin())).body.stockQuantity as number;
+
+    it('una zona sin cobertura definida no recibe pedidos ni direcciones (422 ZONE_NOT_OPERATIONAL)', async () => {
+      const product = await newProduct();
+      const order = await place(orderBody(product.id, { zoneId: h.uncoveredZoneId, latitude: -0.1807, longitude: -78.4678 }));
+      expect(order.status).toBe(422);
+      expect(order.body.code).toBe('ZONE_NOT_OPERATIONAL');
+      const address = await api().post('/store/addresses').set(customer()).send({ label: 'Casa', zoneId: h.uncoveredZoneId, address: 'Av. 9 de Octubre 123 y Malecón', latitude: -0.18, longitude: -78.47 });
+      expect(address.status).toBe(422);
+      expect(address.body.code).toBe('ZONE_NOT_OPERATIONAL');
+    });
+
+    it('un punto fuera de la zona se rechaza (422 ZONE_OUT_OF_COVERAGE) y no consume stock ni franja', async () => {
+      const product = await newProduct();
+      const before = await stockOf(product.id);
+      const guayaquil = await place(orderBody(product.id, { latitude: -2.1894, longitude: -79.8891 }));
+      expect(guayaquil.status).toBe(422);
+      expect(guayaquil.body.code).toBe('ZONE_OUT_OF_COVERAGE');
+      expect(await stockOf(product.id)).toBe(before);
+      // El mismo pedido con el punto dentro de la zona sí se acepta y descuenta el stock.
+      const inside = await place(orderBody(product.id, { latitude: -0.19, longitude: -78.48 }));
+      expect(inside.status).toBe(201);
+      expect(await stockOf(product.id)).toBe(before - 1);
+    });
+
+    it('un pedido sin punto se rechaza (422 PIN_REQUIRED) aunque la dirección escrita parezca válida', async () => {
+      const product = await newProduct();
+      const before = await stockOf(product.id);
+      const response = await place(orderBody(product.id));
+      expect(response.status).toBe(422);
+      expect(response.body.code).toBe('PIN_REQUIRED');
+      expect(await stockOf(product.id)).toBe(before);
+    });
+
+    it('una zona inexistente sigue respondiendo 404 y no 422', async () => {
+      const product = await newProduct();
+      const response = await place(orderBody(product.id, { zoneId: h.missingZoneId, latitude: -0.18, longitude: -78.47 }));
+      expect(response.status).toBe(404);
     });
   });
 }

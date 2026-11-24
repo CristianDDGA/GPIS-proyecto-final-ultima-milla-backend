@@ -1,3 +1,4 @@
+import { todayInEcuador } from '../../../../shared/ecuador-date.js';
 import { RoutePlanning, type RoutePlanResult } from '../../domain/route.entity.js';
 import type { RouteRepository } from '../ports/route.repository.port.js';
 
@@ -8,10 +9,13 @@ export interface PlanRoutesInput {
 }
 
 export class PlanRoutesUseCase {
-  constructor(private readonly repository: RouteRepository) {}
+  constructor(
+    private readonly repository: RouteRepository,
+    private readonly today: () => string = () => todayInEcuador(),
+  ) {}
 
   async execute(input: PlanRoutesInput): Promise<RoutePlanResult> {
-    const command = RoutePlanning.prepare(input);
+    const command = RoutePlanning.prepare(input, this.today());
     const result = await this.repository.generatePlan(command);
     return RoutePlanning.acceptResult(command, result);
   }

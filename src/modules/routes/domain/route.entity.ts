@@ -1,5 +1,5 @@
 import { RouteIntegrityError, RouteValidationError } from './route.errors.js';
-import { validateCapacityLimit, validatePagination, validateServiceDate, validateUuid } from './route.validation.js';
+import { validateCapacityLimit, validatePagination, validatePlanningCapacity, validatePlanningDate, validateServiceDate, validateUuid } from './route.validation.js';
 export { POSTGRES_INTEGER_MAX } from './route.validation.js';
 
 export const ROUTE_STATUSES = ['planificada', 'asignada', 'en_curso', 'completada', 'cancelada'] as const;
@@ -200,11 +200,12 @@ function nonNegativeInteger(value: unknown): value is number {
 }
 
 export const RoutePlanning = {
-  prepare(input: { serviceDate: unknown; capacityLimit: unknown; idempotencyKey: unknown }): RoutePlanCommand {
+  /** `today` (hora de Ecuador) lo entrega la capa de aplicación: el dominio no lee el reloj. */
+  prepare(input: { serviceDate: unknown; capacityLimit: unknown; idempotencyKey: unknown }, today: string): RoutePlanCommand {
     return {
       idempotencyKey: validateUuid(input.idempotencyKey, 'Idempotency-Key'),
-      serviceDate: validateServiceDate(input.serviceDate),
-      capacityLimit: validateCapacityLimit(input.capacityLimit),
+      serviceDate: validatePlanningDate(input.serviceDate, today),
+      capacityLimit: validatePlanningCapacity(input.capacityLimit),
     };
   },
 

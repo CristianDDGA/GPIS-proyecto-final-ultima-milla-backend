@@ -6,6 +6,9 @@ export type StoreErrorCode =
   | 'CATEGORY_NOT_FOUND'
   | 'ORDER_NOT_FOUND'
   | 'ZONE_NOT_FOUND'
+  | 'ZONE_NOT_OPERATIONAL'
+  | 'PIN_REQUIRED'
+  | 'ZONE_OUT_OF_COVERAGE'
   | 'IMAGE_NOT_FOUND'
   | 'DUPLICATE_SKU'
   | 'DUPLICATE_CATEGORY'
@@ -40,6 +43,9 @@ const DEFAULT_MESSAGES: Record<StoreErrorCode, string> = {
   CATEGORY_NOT_FOUND: 'La categoría no existe.',
   ORDER_NOT_FOUND: 'El pedido no existe.',
   ZONE_NOT_FOUND: 'La zona no existe.',
+  ZONE_NOT_OPERATIONAL: 'Esta zona aún no tiene cobertura definida y no recibe pedidos.',
+  PIN_REQUIRED: 'Marca tu ubicación en el mapa para saber si llegamos a esa dirección.',
+  ZONE_OUT_OF_COVERAGE: 'Aún no llegamos a esta dirección: el punto está fuera de la zona elegida.',
   IMAGE_NOT_FOUND: 'La imagen no existe.',
   DUPLICATE_SKU: 'Ya existe un producto con ese SKU.',
   DUPLICATE_CATEGORY: 'Ya existe una categoría con ese nombre.',

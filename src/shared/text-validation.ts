@@ -66,6 +66,28 @@ export function validatePlaceName(value: unknown, label: string): TextResult {
   return { ok: true, value: text };
 }
 
+/** Límites del nombre de una zona de reparto (más estrictos que el de un lugar cualquiera). */
+export const ZONE_NAME_MIN_LENGTH = 3;
+export const ZONE_NAME_MAX_LENGTH = 40;
+const ZONE_NAME_MIN_LETTERS = 3;
+
+/**
+ * Nombre de una zona de reparto: de 3 a 40 caracteres con al menos 3 letras. Solo se usa al CREAR zonas; los
+ * nombres ya guardados no se revalidan. No puede saber si el nombre "tiene sentido": lo que da realidad a una zona
+ * es su cobertura en el mapa, sin la cual no recibe pedidos.
+ */
+export function validateZoneName(value: unknown, label: string): TextResult {
+  const place = validatePlaceName(value, label);
+  if (!place.ok) return place;
+  if (place.value.length < ZONE_NAME_MIN_LENGTH || place.value.length > ZONE_NAME_MAX_LENGTH) {
+    return fail(`${label} debe tener entre ${ZONE_NAME_MIN_LENGTH} y ${ZONE_NAME_MAX_LENGTH} caracteres.`);
+  }
+  if (countLetters(place.value) < ZONE_NAME_MIN_LETTERS) {
+    return fail(`${label} debe incluir al menos ${ZONE_NAME_MIN_LETTERS} letras.`);
+  }
+  return place;
+}
+
 const ADDRESS = /^[\p{L}0-9][\p{L}\p{M}0-9 .,'’&/()#°º-]*$/u;
 
 /** Dirección de entrega: letras, números y puntuación de direcciones. Sin emojis ni caracteres de control. */

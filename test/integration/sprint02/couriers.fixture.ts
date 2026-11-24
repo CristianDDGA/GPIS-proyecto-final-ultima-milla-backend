@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { createDatabaseClient } from '../../../src/bootstrap/database.js';
 import { resetTestData } from '../database.fixture.js';
 import { validateId } from '../../../src/modules/couriers/domain/courier.js';
@@ -14,7 +15,7 @@ export type FixtureDatabase = ReturnType<typeof courierDatabase>;
 export const serviceDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(Date.now() + 2 * 86400000));
 export async function preparedRoute(database: FixtureDatabase, orders = 1, capacity = Math.max(orders, 4)) {
   return database.$transaction(async client => {
-    const zones = await client.$queryRaw<{ id: string }[]>`SELECT logistica.create_zone('Fixture S2') AS id`;
+    const zones = await client.$queryRaw<{ id: string }[]>`SELECT logistica.create_zone(${`Fixture S2 ${randomUUID().slice(0, 8)}`}::text) AS id`;
     const zoneId = zones[0]!.id;
     const routes = await client.$queryRaw<{ id: string }[]>`SELECT logistica.create_route(${zoneId}::uuid,${serviceDate}::date,${capacity}::integer) AS id`;
     const routeId = routes[0]!.id;

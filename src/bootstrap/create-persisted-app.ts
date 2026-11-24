@@ -1,6 +1,7 @@
 import { createApp } from './create-app.js';
 import type { createDatabaseClient } from './database.js';
 import { PrismaZoneRepository } from '../modules/zones/infrastructure/postgres/prisma-zone.repository.js';
+import { ZoneDeliveryGuardService } from '../modules/zones/application/zone-delivery-guard.service.js';
 import { PrismaOrderRepository } from '../modules/orders/infrastructure/postgres/prisma-order.repository.js';
 import { logisticaOrderSql } from '../modules/orders/infrastructure/postgres/logistica-order.sql.js';
 import { PrismaOrderZoneLookup } from '../modules/orders/infrastructure/postgres/prisma-order-zone.lookup.js';
@@ -117,8 +118,10 @@ export function createPersistedApp(
     ...(options?.courierDefaultCapacity !== undefined ? { defaultCapacity: options.courierDefaultCapacity } : {}),
   });
 
+  const zoneRepository = new PrismaZoneRepository(database);
   const storeRepository = new PrismaStoreRepository(database);
   const store = createStoreModule({
+    zoneGuard: new ZoneDeliveryGuardService(zoneRepository),
     catalog: storeRepository,
     orders: storeRepository,
     flows: new PrismaFlowsRepository(database),
@@ -140,7 +143,7 @@ export function createPersistedApp(
     ...(options?.trustProxyHops !== undefined ? { trustProxyHops: options.trustProxyHops } : {}),
     tokenService: auth.tokenService,
     tokenRevocationStore: auth.revocationStore,
-    zoneRepository: new PrismaZoneRepository(database),
+    zoneRepository,
     orderRepository: new PrismaOrderRepository(database, logisticaOrderSql),
     orderZoneLookup: new PrismaOrderZoneLookup(database),
     routers: [

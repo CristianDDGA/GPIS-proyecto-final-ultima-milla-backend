@@ -24,11 +24,19 @@ export interface StoreHarness {
   readonly customerToken: string;
   readonly otherCustomerToken: string;
   readonly driverToken: string;
+  /** Zona activa con cobertura: un círculo de 50 km alrededor de `pin`. */
   readonly zoneId: string;
+  /** Zona activa SIN cobertura definida: no es operativa y no recibe pedidos. */
+  readonly uncoveredZoneId: string;
   readonly inactiveZoneId: string;
   readonly missingZoneId: string;
+  /** Punto del mapa dentro de la cobertura de `zoneId`. */
+  readonly pin: { readonly latitude: number; readonly longitude: number };
   readonly images: InMemoryFileStorage;
 }
+
+/** Centro y radio de la cobertura que usan los arneses (Quito). */
+export const TEST_COVERAGE = { latitude: -0.1807, longitude: -78.4678, radiusKm: 50 } as const;
 
 export interface StoreHarnessOptions {
   readonly storeRateLimit?: { readonly maxRequests: number; readonly windowMs: number };
@@ -92,6 +100,8 @@ export function defineStoreApiSuite(
       deliveryAddress: 'Av. 9 de Octubre 123 y Malecón',
       deliveryDate: futureDate(3),
       deliveryTime: '10:00',
+      latitude: h.pin.latitude,
+      longitude: h.pin.longitude,
       items: [{ productId, quantity, unitPriceCents: price }],
       ...overrides,
     };

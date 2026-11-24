@@ -19,6 +19,7 @@ import {
 } from '../domain/store.validation.js';
 import type { OrderConflict, Product, StoreOrderLine } from '../domain/store.types.js';
 import type { CatalogRepository, ProductImageStorage, StoreOrderRepository } from './ports/store.ports.js';
+import type { ZoneDeliveryGuard } from '../../../shared/zone-delivery-guard.port.js';
 
 export interface StoreActor {
   readonly id: string;
@@ -53,6 +54,7 @@ export class StoreUseCases {
     private readonly catalog: CatalogRepository,
     private readonly orders: StoreOrderRepository,
     private readonly images: ProductImageStorage,
+    private readonly zoneGuard: ZoneDeliveryGuard,
   ) {}
 
   // ------------------------------------------------------------------------------------------ vistas
@@ -259,6 +261,9 @@ export class StoreUseCases {
   async placeOrder(actor: StoreActor, body: unknown, idempotencyKey: unknown) {
     if (actor.role !== 'cliente') throw new StoreError('FORBIDDEN', 'Solo los clientes pueden hacer pedidos de la tienda.');
     const command = parsePlaceOrder(bodyObject(body), idempotencyKey, actor.id);
+    // La zona debe tener cobertura y el punto del mapa debe caer dentro de ella: lo decide el servidor, no la pantalla.
+    const issue = await this.zoneGuard.check(command.zoneId, { latitude: command.latitude, longitude: command.longitude });
+    if (issue !== null) throw new StoreError(issue);
     const result = await this.orders.placeOrder(command);
     if (result.status === 'conflict') {
       const first = result.conflicts[0];

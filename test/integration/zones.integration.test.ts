@@ -107,10 +107,35 @@ describe('S1-CP-003 · Zonas: registro y validación integrada', () => {
       expect(response.status).toBe(400);
       expect(response.body.code).toBe('VALIDATION_ERROR');
     });
+
+    it.each([
+      ['demasiado corto', 'ab'],
+      ['demasiado largo', 'Z'.repeat(41)],
+      ['con menos de 3 letras', '1 2 a b'],
+    ])('rechaza un nombre %s con 400 y no crea la zona', async (_motivo, name) => {
+      const response = await request(app).post('/zones').send({ name });
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+      expect((await request(app).get('/zones')).body.items).toHaveLength(0);
+    });
+
+    it('acepta un nombre de entre 3 y 40 caracteres y lo guarda recortado', async () => {
+      const response = await request(app).post('/zones').send({ name: '  Ambato Centro  ' });
+      expect(response.status).toBe(201);
+      expect(response.body.name).toBe('Ambato Centro');
+    });
   });
 
   describe('Conflictos y casos de consulta', () => {
     it('debe rechazar el registro de una zona con nombre duplicado con código 409 y DATA_CONFLICT', async () => {
+      // Variantes de mayúsculas y espacios también cuentan como el mismo nombre.
+      await request(app).post('/zones').send({ name: 'Zona Duplicable' });
+      for (const variant of ['zona duplicable', '  ZONA DUPLICABLE  ']) {
+        const repeated = await request(app).post('/zones').send({ name: variant });
+        expect(repeated.status).toBe(409);
+        expect(repeated.body.code).toBe('DATA_CONFLICT');
+      }
+
       await request(app).post('/zones').send({ name: 'Norte' });
 
       const duplicateResponse = await request(app)

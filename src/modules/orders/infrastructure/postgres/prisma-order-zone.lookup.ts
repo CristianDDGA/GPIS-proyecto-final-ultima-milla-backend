@@ -7,8 +7,8 @@ export class PrismaOrderZoneLookup implements OrderZonePort {
 
   async findById(id: string) {
     try {
-      const rows = await this.prisma.$queryRaw<readonly { id: string; active: boolean }[]>`
-        SELECT id, is_active AS active FROM logistica.zones WHERE id = ${id}::uuid`;
+      const rows = await this.prisma.$queryRaw<readonly { id: string; active: boolean; hasCoverage: boolean }[]>`
+        SELECT id, is_active AS active, (center_latitude IS NOT NULL) AS "hasCoverage" FROM logistica.zones WHERE id = ${id}::uuid`;
       return rows[0] ?? null;
     } catch (error: unknown) {
       throwOrderPersistenceError(error);

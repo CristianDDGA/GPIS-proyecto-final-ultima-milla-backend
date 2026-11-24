@@ -3,7 +3,7 @@ import { createPersistedApp } from '../../src/bootstrap/create-persisted-app.js'
 import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypto/hmac-jwt.token-service.js';
 import { InMemoryFileStorage } from '../../src/modules/courier-applications/infrastructure/storage/in-memory-file-storage.js';
 import { ProductImageStorageAdapter } from '../../src/modules/store/infrastructure/storage/product-image-storage.js';
-import { defineStoreApiSuite, type StoreHarness, type StoreHarnessOptions } from '../support/store-api-suite.js';
+import { defineStoreApiSuite, TEST_COVERAGE, type StoreHarness, type StoreHarnessOptions } from '../support/store-api-suite.js';
 import { defineStoreCoordinatesSuite, defineStoreFlowsSuite } from '../support/store-flows-suite.js';
 import { realDatabase } from './database.fixture.js';
 import { deliveryDatabase, resetTestData, runAdminSql } from './sprint03/deliveries.fixture.js';
@@ -29,6 +29,7 @@ describeReal('Tienda y flujos · API HTTP contra PostgreSQL real (migraciones 01
     const driver = randomUUID();
     const courier = randomUUID();
     const zone = randomUUID();
+    const uncoveredZone = randomUUID();
     const inactiveZone = randomUUID();
     // Un solo viaje a la base: vacía la tienda, restablece la configuración y crea usuarios y zonas con ids conocidos.
     runAdminSql(`
@@ -39,9 +40,10 @@ describeReal('Tienda y flujos · API HTTP contra PostgreSQL real (migraciones 01
         ('${customer}', 'store-customer-${customer}', 'cliente'),
         ('${otherCustomer}', 'store-customer-${otherCustomer}', 'cliente'),
         ('${driver}', 'store-driver-${driver}', 'repartidor');
-      INSERT INTO logistica.zones(id, name, is_active) VALUES
-        ('${zone}', 'Zona de tienda', true),
-        ('${inactiveZone}', 'Zona inactiva de tienda', false);
+      INSERT INTO logistica.zones(id, name, is_active, center_latitude, center_longitude, coverage_radius_km) VALUES
+        ('${zone}', 'Zona de tienda', true, ${TEST_COVERAGE.latitude}, ${TEST_COVERAGE.longitude}, ${TEST_COVERAGE.radiusKm}),
+        ('${uncoveredZone}', 'Zona sin cobertura de tienda', true, NULL, NULL, NULL),
+        ('${inactiveZone}', 'Zona inactiva de tienda', false, ${TEST_COVERAGE.latitude}, ${TEST_COVERAGE.longitude}, ${TEST_COVERAGE.radiusKm});
       INSERT INTO logistica.couriers(id, display_name, max_orders_per_trip, user_id, is_available) VALUES ('${courier}', 'Conductor de tienda', 10, '${driver}', true);`);
 
     const images = new InMemoryFileStorage();
@@ -79,8 +81,10 @@ describeReal('Tienda y flujos · API HTTP contra PostgreSQL real (migraciones 01
       otherCustomerToken: token(otherCustomer, 'cliente'),
       driverToken: token(driver, 'repartidor'),
       zoneId: zone,
+      uncoveredZoneId: uncoveredZone,
       inactiveZoneId: inactiveZone,
       missingZoneId: randomUUID(),
+      pin: { latitude: TEST_COVERAGE.latitude, longitude: TEST_COVERAGE.longitude },
       images,
     };
   };

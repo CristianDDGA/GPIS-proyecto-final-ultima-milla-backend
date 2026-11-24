@@ -1,5 +1,6 @@
 import { CourierError } from './courier.errors.js';
 import { validatePersonName } from '../../../shared/text-validation.js';
+import { MAX_ORDERS_PER_ROUTE } from '../../../shared/delivery-limits.js';
 
 export interface Courier {
   readonly id: string;
@@ -19,8 +20,8 @@ export function validateRegistration(displayName: unknown, capacity: unknown) {
   }
   const name = validatePersonName(displayName, 'El nombre');
   if (!name.ok) throw new CourierError('VALIDATION_ERROR', name.reason);
-  if (typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 1 || capacity > 2147483647) {
-    throw new CourierError('VALIDATION_ERROR', 'La capacidad debe ser un entero positivo de 32 bits.');
+  if (typeof capacity !== 'number' || !Number.isInteger(capacity) || capacity < 1 || capacity > MAX_ORDERS_PER_ROUTE) {
+    throw new CourierError('VALIDATION_ERROR', `La capacidad debe ser un entero entre 1 y ${MAX_ORDERS_PER_ROUTE}.`);
   }
   return { displayName: name.value, maxOrdersPerTrip: capacity };
 }

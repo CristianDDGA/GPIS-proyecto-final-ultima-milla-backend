@@ -90,8 +90,8 @@ export function createRouteOperationsModule(repositories: {
 }
 
 // Composes only Routes; persistence adapters are injected by the bootstrap entry.
-export function createRoutesModule(repository: RouteRepository): RoutesModule {
-  const planRoutes = new PlanRoutesUseCase(repository);
+export function createRoutesModule(repository: RouteRepository, today?: () => string): RoutesModule {
+  const planRoutes = new PlanRoutesUseCase(repository, today);
   const listRoutes = new ListRoutesUseCase(repository);
   const getRoute = new GetRouteUseCase(repository);
   const controller = new RouteController(planRoutes, listRoutes, getRoute);

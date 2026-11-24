@@ -159,7 +159,7 @@ export async function prepareUnassignedOrder(
 ): Promise<{ readonly zoneId: string; readonly orderId: string }> {
   return database.$transaction(async client => {
     const zones = await client.$queryRaw<{ id: string }[]>`
-      SELECT logistica.create_zone('Zona Fixture S3') AS id
+      SELECT logistica.create_zone(${`Zona Fixture S3 ${randomUUID().slice(0, 8)}`}::text) AS id
     `;
     const zoneId = zones[0]!.id;
     const orders = await client.$queryRaw<{ id: string }[]>`
@@ -198,7 +198,7 @@ export async function prepareAssignedRoute(
 
   const prepared = await database.$transaction(async client => {
     const zones = await client.$queryRaw<{ id: string }[]>`
-      SELECT logistica.create_zone('Zona Ruta S3') AS id
+      SELECT logistica.create_zone(${`Zona Ruta S3 ${randomUUID().slice(0, 8)}`}::text) AS id
     `;
     const zoneId = zones[0]!.id;
     const routes = await client.$queryRaw<{ id: string }[]>`
@@ -250,7 +250,7 @@ export async function preparePlannedRoute(
 }> {
   return database.$transaction(async client => {
     const zones = await client.$queryRaw<{ id: string }[]>`
-      SELECT logistica.create_zone('Zona Planificada S3') AS id
+      SELECT logistica.create_zone(${`Zona Planificada S3 ${randomUUID().slice(0, 8)}`}::text) AS id
     `;
     const zoneId = zones[0]!.id;
     const routes = await client.$queryRaw<{ id: string }[]>`
