@@ -9,7 +9,7 @@ export const ORDER_STATUSES = ['pendiente', 'asignado_a_ruta', 'recogido', 'en_c
 export type StopOrderStatus = typeof ORDER_STATUSES[number];
 
 // The only grouping/ordering policy this sprint exposes: zone + date, then delivery time and ID.
-export const PLANNING_ALGORITHM = 'zona_hora_v1' as const;
+export const PLANNING_ALGORITHM = 'zona_hora_nn_v2' as const;
 
 export interface RoutePlanCommand {
   readonly serviceDate: string;

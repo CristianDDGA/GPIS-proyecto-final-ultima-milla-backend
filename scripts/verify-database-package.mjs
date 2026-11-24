@@ -21,6 +21,7 @@ export const requiredFiles = [
   'database/migrations/013_coordinates.sql',
   'database/migrations/014_google_login.sql',
   'database/migrations/015_profile_zone_coverage.sql',
+  'database/migrations/016_route_optimization.sql',
   'database/scripts/migrate.sh',
   'database/seeds/demo.sql',
   'database/tests/integration.sql',
@@ -30,6 +31,7 @@ export const requiredFiles = [
   'database/tests/flows.sql',
   'database/tests/google.sql',
   'database/tests/profile_zones.sql',
+  'database/tests/routing.sql',
   'database/tests/flows-race.sh',
 ];
 
