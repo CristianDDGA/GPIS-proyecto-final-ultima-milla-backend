@@ -72,6 +72,10 @@ export interface UserListPage {
 
 export interface AuthUseCases {
   registerCustomer(input: { email: unknown; password: unknown; displayName?: unknown }): Promise<RegisterResult>;
+  /**
+   * Uso interno (arranque del sistema y pruebas): NO hay endpoint HTTP. Los clientes se registran solos, los
+   * repartidores entran por una solicitud aprobada y el sistema admite un único administrador (migración 017).
+   */
   registerByAdmin(
     actor: AdminActor,
     input: { email: unknown; password: unknown; role: unknown; displayName?: unknown },

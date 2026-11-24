@@ -6,6 +6,7 @@ import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypt
 import { createAuthModule } from '../../src/modules/auth/index.js';
 import { CapturingEmailSender, InMemoryAuthRepository } from '../support/in-memory-auth.js';
 import { defineGoogleLoginSuite, FakeGoogleVerifier, type GoogleHarness, type GoogleHarnessOptions } from '../support/google-auth-suite.js';
+import { createPostgresSeeder } from '../support/seed-accounts.js';
 import { realDatabase } from './database.fixture.js';
 import { createFixtureActor, deliveryDatabase, resetTestData, runAdminSql } from './sprint03/deliveries.fixture.js';
 
@@ -37,6 +38,9 @@ function memoryHarness(options: GoogleHarnessOptions = {}): GoogleHarness {
     emails,
     google,
     countAccounts: async (email) => ((await repository.findByEmail(email)) ? 1 : 0),
+    seedAccount: async (email, role, password) => {
+      await authModule.useCases.registerByAdmin({ role: 'personal' }, { email, password, role, displayName: 'Persona Prueba' });
+    },
   };
 }
 
@@ -69,6 +73,14 @@ describeReal('Inicio de sesión con Google · PostgreSQL real (migración 014)',
       emails,
       google,
       countAccounts: async (email) => Number(runAdminSql(`SELECT count(*) FROM logistica.app_users WHERE lower(email) = lower('${email.replace(/'/g, '')}');`)),
+      seedAccount: async (email, role, password) => {
+        if (role === 'admin') {
+          // Ya existe el administrador de la prueba (único): se le pone el correo en lugar de crear otro.
+          runAdminSql(`UPDATE logistica.app_users SET email = '${email.replace(/'/g, '')}', email_verified_at = now(), email_verified_via = 'admin' WHERE id = '${admin.actorId}';`);
+          return;
+        }
+        await createPostgresSeeder(database, SECRET)({ email, password, role, displayName: 'Persona Prueba' });
+      },
     };
   });
 

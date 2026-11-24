@@ -26,10 +26,7 @@ export function createCourierRouter(couriers: CourierUseCases, assignments: Assi
   function route(operation: (request: Request, response: Response) => Promise<void>) {
     return (request: Request, response: Response) => { void operation(request, response).catch(error => sendError(error, response)); };
   }
-  router.post('/couriers', route(async (request, response) => {
-    const input = body(request);
-    response.status(201).json(await couriers.create(input['displayName'], input['maxOrdersPerTrip']));
-  }));
+  // No hay alta directa de repartidores: la ficha nace al aprobar una solicitud (POST /courier-applications/:id/approve).
   router.get('/couriers', route(async (request, response) => { response.json(await couriers.list(request.query)); }));
   router.patch('/couriers/:id/availability', route(async (request, response) => {
     response.json(await couriers.setAvailability(request.params['id'], body(request)['isAvailable']));

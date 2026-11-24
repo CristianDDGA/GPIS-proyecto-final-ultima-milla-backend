@@ -54,6 +54,10 @@ export class InMemoryAuthRepository implements AuthRepository {
     if (await this.findByEmail(input.email)) {
       throw new AuthError('EMAIL_ALREADY_EXISTS');
     }
+    // Igual que la migración 017: solo puede existir un administrador.
+    if (input.role === 'personal' && [...this.usersById.values()].some((user) => user.role === 'personal')) {
+      throw new AuthError('ADMIN_ALREADY_EXISTS');
+    }
     const id = randomUUID();
     const verifiedVia = input.verification === 'pending' ? null : input.verification;
     const record: AuthUserRecord = {

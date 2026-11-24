@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { createCouriersApp } from '../../../src/bootstrap/sprint02/couriers.server.js';
+import { CourierUseCases } from '../../../src/modules/couriers/application/courier.use-cases.js';
 import { PrismaCourierRepository } from '../../../src/modules/couriers/infrastructure/postgres/prisma-courier.repository.js';
 import { PrismaAssignmentRepository } from '../../../src/modules/couriers/infrastructure/postgres/prisma-assignment.repository.js';
 import { courierDatabase, preparedRoute, resetTestData, routeSnapshot, disableCourier, serviceDate, type FixtureDatabase } from './couriers.fixture.js';
@@ -22,10 +23,11 @@ describeReal('Sprint 02 - Couriers - PostgreSQL real (sin mocks)', () => {
   });
   beforeEach(() => { resetTestData(); });
   afterAll(async () => { await database?.$disconnect(); await secondDatabase?.$disconnect(); });
+  // No hay alta por HTTP (los conductores nacen al aprobar una solicitud): el alta se hace por el caso de uso.
+  const courierUseCases = () => new CourierUseCases(new PrismaCourierRepository(database));
   async function courier(capacity = 4, available = true) {
-    const response = await request(app).post('/couriers').send({ displayName: 'Repartidor sintético', maxOrdersPerTrip: capacity });
-    expect(response.status).toBe(201);
-    const id = response.body.id as string;
+    const created = await courierUseCases().create('Repartidor sintético', capacity);
+    const id = created.id;
     if (available) expect((await request(app).patch(`/couriers/${id}/availability`).send({ isAvailable: true })).status).toBe(200);
     return id;
   }
@@ -43,8 +45,13 @@ describeReal('Sprint 02 - Couriers - PostgreSQL real (sin mocks)', () => {
       expect((await request(app).get(`/couriers/${id}/route`)).body).toEqual({ item: null });
     });
     it.each([{}, { displayName: '  ', maxOrdersPerTrip: 1 }, { displayName: 7, maxOrdersPerTrip: 1 }, { displayName: 'X', maxOrdersPerTrip: 0 }, { displayName: 'X', maxOrdersPerTrip: 1.5 }, { displayName: 'X', maxOrdersPerTrip: '2' }, { displayName: 'X', maxOrdersPerTrip: 2147483648 }, null, []])('rechaza alta inválida %j sin insertar', async input => {
-      const response = await request(app).post('/couriers').set('Content-Type', 'application/json').send(JSON.stringify(input));
-      expect(response.status).toBe(400); expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      const body = input as Record<string, unknown> | null;
+      await expect((async () => courierUseCases().create(body?.['displayName'], body?.['maxOrdersPerTrip']))()).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect((await request(app).get('/couriers')).body.items).toEqual([]);
+    });
+    it('no existe el alta directa por HTTP: POST /couriers responde 404', async () => {
+      const response = await request(app).post('/couriers').send({ displayName: 'Repartidor sintético', maxOrdersPerTrip: 4 });
+      expect(response.status).toBe(404);
       expect((await request(app).get('/couriers')).body.items).toEqual([]);
     });
     it('filtra elegibilidad y pagina; la bandera disponible no libera reserva', async () => {
@@ -74,9 +81,9 @@ describeReal('Sprint 02 - Couriers - PostgreSQL real (sin mocks)', () => {
       const missing = await request(app).patch(`/couriers/${randomUUID()}/availability`).send({ isAvailable: true });
       expect(missing.status).toBe(404); expect(missing.body.code).toBe('COURIER_NOT_FOUND');
       expect((await request(app).get(`/couriers/${randomUUID()}/route`)).status).toBe(404);
-      const malformed = await request(app).post('/couriers').set('Content-Type', 'application/json').send('{');
+      const malformed = await request(app).patch(`/couriers/${id}/availability`).set('Content-Type', 'application/json').send('{');
       expect(malformed.status).toBe(400); expect(malformed.body.error.code).toBe('VALIDATION_ERROR');
-      const large = await request(app).post('/couriers').send({ displayName: 'x'.repeat(33000), maxOrdersPerTrip: 1 });
+      const large = await request(app).patch(`/couriers/${id}/availability`).send({ isAvailable: true, padding: 'x'.repeat(33000) });
       expect(large.status).toBe(413); expect(large.body.code).toBe('VALIDATION_ERROR');
       expect((await request(app).patch(`/couriers/${id}/availability`).send({ isAvailable: false })).body.isAvailable).toBe(false);
     });

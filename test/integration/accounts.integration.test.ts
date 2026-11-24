@@ -4,6 +4,7 @@ import { HmacJwtTokenService } from '../../src/modules/auth/infrastructure/crypt
 import { realDatabase } from './database.fixture.js';
 import { createFixtureActor, deliveryDatabase, prepareAssignedRoute, resetTestData, runAdminSql } from './sprint03/deliveries.fixture.js';
 import { CapturingEmailSender } from '../support/in-memory-auth.js';
+import { createPostgresSeeder } from '../support/seed-accounts.js';
 
 const SECRET = 'integration-test-jwt-secret-1234';
 const ORIGIN = 'http://127.0.0.1:5173';
@@ -28,7 +29,8 @@ describeReal('Cuentas · verificación, recuperación y sesiones con PostgreSQL 
     return response;
   }
 
-  beforeAll(() => { database = deliveryDatabase(); });
+  let seedAccount: ReturnType<typeof createPostgresSeeder>;
+  beforeAll(() => { database = deliveryDatabase(); seedAccount = createPostgresSeeder(database, SECRET); });
   beforeEach(() => {
     resetTestData();
     emails = new CapturingEmailSender();
@@ -143,9 +145,9 @@ describeReal('Cuentas · verificación, recuperación y sesiones con PostgreSQL 
   it('un conductor creado por el admin nace verificado y no depende de un correo real; el admin restablece su clave', async () => {
     const admin = createFixtureActor('personal');
     const adminToken = tokens.sign({ sub: admin.actorId, role: 'personal', authSubject: admin.authSubject, courierId: null });
-    const created = await request(app).post('/auth/users').set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: 'conductor@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
-    expect(created.status).toBe(201);
+    const created = {
+      body: { user: await seedAccount({ email: 'conductor@correo.ficticio.com', password: 'Ruta-Norte-Lluvia-2026', role: 'repartidor', displayName: 'Carlos Conductor' }) },
+    };
     expect(created.body.user.emailVerified).toBe(true);
     expect(runAdminSql("SELECT email_verified_via FROM logistica.app_users WHERE email='conductor@correo.ficticio.com';")).toBe('admin');
     expect(emails.sent).toHaveLength(0);
@@ -186,7 +188,8 @@ describeReal('Gestión de usuarios · PostgreSQL real (migración 008)', () => {
   const tokens = new HmacJwtTokenService(SECRET);
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  beforeAll(() => { database = deliveryDatabase(); });
+  let seedAccount: ReturnType<typeof createPostgresSeeder>;
+  beforeAll(() => { database = deliveryDatabase(); seedAccount = createPostgresSeeder(database, SECRET); });
   beforeEach(() => {
     resetTestData();
     emails = new CapturingEmailSender();
@@ -199,11 +202,8 @@ describeReal('Gestión de usuarios · PostgreSQL real (migración 008)', () => {
     return { id: actor.actorId, auth: { Authorization: `Bearer ${tokens.sign({ sub: actor.actorId, role: 'personal', authSubject: actor.authSubject, courierId: null })}` } };
   }
 
-  async function createDriver(auth: { Authorization: string }, email: string) {
-    const response = await request(app).post('/auth/users').set(auth)
-      .send({ email, password: 'Faro-Verde-Mar-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
-    expect(response.status).toBe(201);
-    return response.body.user as { id: string };
+  async function createDriver(_auth: { Authorization: string }, email: string) {
+    return seedAccount({ email, password: 'Faro-Verde-Mar-2026', role: 'repartidor', displayName: 'Carlos Conductor' });
   }
 
   it('lista con filtros, total y paginación desde la base, y no expone el hash de la clave', async () => {
