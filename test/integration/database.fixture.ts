@@ -65,8 +65,11 @@ export function setTestZoneInactive(id: string): void {
 
 export function integrationRepositories() {
   if (!realDatabase) {
-    const zoneRepository = new InMemoryZoneRepository();
-    return {zoneRepository,orderRepository:new InMemoryOrderRepository(),orderZoneLookup:orderZonePortFrom(zoneRepository)};
+    const orderRepository = new InMemoryOrderRepository();
+    // Misma regla que set_zone_active (019): pedidos sin cerrar bloquean la desactivación.
+    const zoneRepository = new InMemoryZoneRepository(async (zoneId) =>
+      (await orderRepository.findAll({ zoneId })).some((order) => order.status !== 'entregado' && order.status !== 'cancelado'));
+    return {zoneRepository,orderRepository,orderZoneLookup:orderZonePortFrom(zoneRepository)};
   }
   resetTestData();
   database ??= createDatabaseClient(process.env.TEST_DATABASE_URL!);

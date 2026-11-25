@@ -82,6 +82,12 @@ test('regla de entrega: una zona sin cobertura no es operativa, con o sin pin', 
   assert.equal(await guardFor(zone(null)).check('z', { latitude: null, longitude: null }), 'ZONE_NOT_OPERATIONAL');
 });
 
+test('regla de entrega: una zona inactiva tampoco se juzga aquí (la tienda responde zone_inactive)', async () => {
+  const now = new Date();
+  const inactive = Zone.create({ id: '3f2b8c1e-9a4d-4c2b-8e1f-123456789abc', name: 'Ambato Centro', createdAt: now, updatedAt: now, coverage: COVERAGE, isActive: false });
+  assert.equal(await guardFor(inactive).check('z', { latitude: -1.25, longitude: -78.61 }), null);
+});
+
 test('regla de entrega: una zona inexistente no se juzga aquí (la capa de pedidos responde 404)', async () => {
   assert.equal(await guardFor(null).check('z', { latitude: -1.25, longitude: -78.61 }), null);
 });

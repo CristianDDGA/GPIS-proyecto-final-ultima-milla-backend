@@ -18,11 +18,11 @@ funcionando como antes.
 
 ## Objeto zona
 
-Toda respuesta de zona incluye `coverage` (`null` si no tiene):
+Toda respuesta de zona incluye `coverage` (`null` si no tiene) e `isActive` (`false`: no recibe pedidos ni entra en la planificación):
 
 ```json
 { "id": "…", "name": "Izamba", "createdAt": "…", "updatedAt": "…",
-  "coverage": { "latitude": -1.21, "longitude": -78.599, "radiusKm": 3 } }
+  "coverage": { "latitude": -1.21, "longitude": -78.599, "radiusKm": 3 }, "isActive": true }
 ```
 
 ## `PUT /zones/:id/coverage` (solo `personal`)
@@ -32,6 +32,19 @@ Cuerpo: `{ "coverage": { "latitude", "longitude", "radiusKm" } }` o `{ "coverage
 - `latitude`/`longitude`: números dentro de Ecuador (incluye Galápagos).
 - `radiusKm`: de 0,1 a 50 (se guarda con 2 decimales).
 - `200` con la zona; `400 VALIDATION_ERROR` si algo no cumple o hay campos de más; `404 ZONE_NOT_FOUND`.
+
+## `PATCH /zones/:id` (solo `personal`) — activar o desactivar (migración 019)
+
+Cuerpo: `{ "isActive": false }` o `{ "isActive": true }`. Cualquier otro campo se rechaza.
+
+- Una zona **inactiva** no entra en la planificación de rutas, no recibe pedidos ni direcciones y no la devuelve `/zones/lookup`.
+  Conserva su cobertura y su historial; al reactivarla vuelve a funcionar igual.
+- **No se puede desactivar** una zona con trabajo abierto: rutas `planificada`, `asignada` o `en_curso`, o pedidos que no estén
+  `entregado` ni `cancelado` (incluye los de `entrega_fallida`, que el cliente puede reprogramar). Responde `409 ZONE_IN_USE`.
+- Reactivar no tiene condiciones. Repetir el mismo estado es idempotente (`200`).
+- `200` con la zona; `400 VALIDATION_ERROR` (cuerpo, valor o identificador inválido); `404 ZONE_NOT_FOUND`; `403` si no es `personal`.
+- La comprobación y el cambio ocurren juntos en la base (`set_zone_active`), con la fila de la zona bloqueada: un pedido nuevo no
+  puede colarse entre ambos.
 
 ## `GET /zones/lookup?latitude=&longitude=` (cualquier rol con sesión)
 

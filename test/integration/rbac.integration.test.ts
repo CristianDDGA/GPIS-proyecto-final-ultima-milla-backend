@@ -28,6 +28,7 @@ describe('RBAC & RequestActorContext Integration (in-memory)', () => {
   const stubRouter = Router();
   stubRouter.get('/zones', (_req, res) => res.status(200).json({ ok: true }));
   stubRouter.post('/zones', (_req, res) => res.status(201).json({ ok: true }));
+  stubRouter.patch('/zones/:id', (_req, res) => res.status(200).json({ ok: true }));
   stubRouter.post('/orders', (_req, res) => res.status(201).json({ ok: true }));
   stubRouter.get('/orders', (_req, res) => res.status(200).json({ ok: true }));
   stubRouter.post('/route-plans', (_req, res) => res.status(200).json({ ok: true }));
@@ -61,6 +62,7 @@ describe('RBAC & RequestActorContext Integration (in-memory)', () => {
     expect((await request(app).get('/orders').set('Authorization', `Bearer ${customerToken}`)).status).toBe(200);
 
     expect((await request(app).post('/zones').set('Authorization', `Bearer ${customerToken}`).send({})).status).toBe(403);
+    expect((await request(app).patch('/zones/abc').set('Authorization', `Bearer ${customerToken}`).send({})).status).toBe(403);
     expect((await request(app).post('/route-plans').set('Authorization', `Bearer ${customerToken}`).send({})).status).toBe(403);
     expect((await request(app).get('/routes').set('Authorization', `Bearer ${customerToken}`)).status).toBe(403);
     expect((await request(app).post('/couriers').set('Authorization', `Bearer ${customerToken}`).send({})).status).toBe(403);
@@ -79,12 +81,14 @@ describe('RBAC & RequestActorContext Integration (in-memory)', () => {
     expect((await request(app).get(`/couriers/${OTHER_COURIER_ID}/route`).set('Authorization', `Bearer ${driverToken}`)).status).toBe(403);
     expect((await request(app).patch(`/couriers/${OTHER_COURIER_ID}/availability`).set('Authorization', `Bearer ${driverToken}`).send({})).status).toBe(403);
     expect((await request(app).post('/zones').set('Authorization', `Bearer ${driverToken}`).send({})).status).toBe(403);
+    expect((await request(app).patch('/zones/abc').set('Authorization', `Bearer ${driverToken}`).send({})).status).toBe(403);
     expect((await request(app).post('/route-plans').set('Authorization', `Bearer ${driverToken}`).send({})).status).toBe(403);
     expect((await request(app).post('/orders').set('Authorization', `Bearer ${driverToken}`).send({})).status).toBe(403);
   });
 
   test('rol personal (admin): accede a todos los endpoints operativos', async () => {
     expect((await request(app).post('/zones').set('Authorization', `Bearer ${adminToken}`).send({})).status).toBe(201);
+    expect((await request(app).patch('/zones/abc').set('Authorization', `Bearer ${adminToken}`).send({})).status).toBe(200);
     expect((await request(app).post('/route-plans').set('Authorization', `Bearer ${adminToken}`).send({})).status).toBe(200);
     expect((await request(app).post('/routes/11111111-1111-4111-8111-111111111111/cancel').set('Authorization', `Bearer ${adminToken}`)).status).toBe(200);
     expect((await request(app).post('/couriers').set('Authorization', `Bearer ${adminToken}`).send({})).status).toBe(201);

@@ -7,7 +7,8 @@ export class ZoneDeliveryGuardService implements ZoneDeliveryGuard {
 
   async check(zoneId: string, point: DeliveryPoint): Promise<DeliveryZoneIssue | null> {
     const zone = await this.zones.findById(zoneId);
-    if (zone === null) return null;
+    // Zona inexistente o inactiva: no se juzga aquí; la capa de tienda responde (404 / zone_inactive) como antes.
+    if (zone === null || !zone.isActive) return null;
     if (zone.coverage === null) return 'ZONE_NOT_OPERATIONAL';
     if (point.latitude === null || point.longitude === null) return 'PIN_REQUIRED';
     return zone.covers(point.latitude, point.longitude) ? null : 'ZONE_OUT_OF_COVERAGE';
