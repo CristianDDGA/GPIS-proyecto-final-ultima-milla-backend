@@ -7,6 +7,8 @@ export interface ZoneRepository {
   findAll(): Promise<readonly Zone[]>;
   /** Fija (o quita con null) la cobertura. null si la zona no existe. */
   setCoverage(id: string, coverage: ZoneCoverage | null): Promise<Zone | null>;
+  /** Activa o desactiva la zona. null si no existe; lanza ZoneInUseError si al desactivar tiene rutas o pedidos abiertos. */
+  setActive(id: string, active: boolean): Promise<Zone | null>;
   /** Zona activa cuyo radio incluye el punto (la de centro más cercano); null si ninguna lo cubre. */
   findCovering(latitude: number, longitude: number): Promise<Zone | null>;
 }

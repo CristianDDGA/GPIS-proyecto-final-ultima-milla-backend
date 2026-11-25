@@ -3,10 +3,12 @@ import type { CreateZoneUseCase } from '../../application/use-cases/create-zone.
 import type { GetZoneUseCase } from '../../application/use-cases/get-zone.use-case.js';
 import type { ListZonesUseCase } from '../../application/use-cases/list-zones.use-case.js';
 import type { FindZoneForPointUseCase, SetZoneCoverageUseCase } from '../../application/use-cases/zone-coverage.use-cases.js';
+import type { SetZoneActiveUseCase } from '../../application/use-cases/set-zone-active.use-case.js';
 import {
   ZoneValidationError,
   ZoneNotFoundError,
   ZoneConflictError,
+  ZoneInUseError,
   PersistenceUnavailableError,
 } from '../../domain/zone.errors.js';
 
@@ -17,7 +19,28 @@ export class ZoneController {
     private readonly listZonesUseCase: ListZonesUseCase,
     private readonly setCoverageUseCase?: SetZoneCoverageUseCase,
     private readonly findForPointUseCase?: FindZoneForPointUseCase,
+    private readonly setActiveUseCase?: SetZoneActiveUseCase,
   ) {}
+
+  /** PATCH /zones/:id  { isActive: boolean } */
+  async setActive(request: Request, response: Response): Promise<void> {
+    try {
+      if (!this.setActiveUseCase) throw new PersistenceUnavailableError();
+      const body: unknown = request.body;
+      if (typeof body !== 'object' || body === null || Array.isArray(body) || !('isActive' in body)) {
+        throw new ZoneValidationError('Envía { "isActive": true } o { "isActive": false }.');
+      }
+      const record = body as Record<string, unknown>;
+      const extra = Object.keys(record).filter((key) => key !== 'isActive');
+      if (extra.length > 0) throw new ZoneValidationError(`Campo no permitido: ${extra[0]}.`);
+      const rawId = request.params['id'];
+      const id = Array.isArray(rawId) ? (rawId[0] ?? '') : (rawId ?? '');
+      const zone = await this.setActiveUseCase.execute(id, record['isActive']);
+      response.status(200).json(zone.toJSON());
+    } catch (error: unknown) {
+      this.handleError(error, response);
+    }
+  }
 
   /** PUT /zones/:id/coverage  { coverage: { latitude, longitude, radiusKm } | null } */
   async setCoverage(request: Request, response: Response): Promise<void> {
@@ -121,7 +144,7 @@ export class ZoneController {
       return;
     }
 
-    if (error instanceof ZoneConflictError) {
+    if (error instanceof ZoneConflictError || error instanceof ZoneInUseError) {
       response.status(409).json({
         code: error.code,
         message: error.message,

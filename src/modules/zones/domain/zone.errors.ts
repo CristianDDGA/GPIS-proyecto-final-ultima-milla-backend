@@ -33,3 +33,12 @@ export class PersistenceUnavailableError extends Error {
     this.name = 'PersistenceUnavailableError';
   }
 }
+
+export class ZoneInUseError extends Error {
+  readonly code = 'ZONE_IN_USE' as const;
+
+  constructor(message: string = 'No se puede desactivar la zona: tiene rutas activas o pedidos sin cerrar. Termínalos, cancélalos o reasígnalos primero.') {
+    super(message);
+    this.name = 'ZoneInUseError';
+  }
+}

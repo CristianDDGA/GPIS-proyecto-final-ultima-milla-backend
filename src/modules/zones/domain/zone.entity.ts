@@ -14,6 +14,8 @@ export interface ZoneProperties extends NewZone {
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly coverage?: ZoneCoverage | null;
+  /** false: la zona no recibe pedidos ni entra en la planificación. Por defecto true. */
+  readonly isActive?: boolean;
 }
 export interface ZoneDto {
   readonly id: string;
@@ -21,6 +23,7 @@ export interface ZoneDto {
   readonly createdAt: string;
   readonly updatedAt: string;
   readonly coverage: ZoneCoverage | null;
+  readonly isActive: boolean;
 }
 
 export const MIN_COVERAGE_RADIUS_KM = 0.1;
@@ -78,6 +81,7 @@ export class Zone {
   get createdAt(): Date { return new Date(this.properties.createdAt); }
   get updatedAt(): Date { return new Date(this.properties.updatedAt); }
   get coverage(): ZoneCoverage | null { return this.properties.coverage ?? null; }
+  get isActive(): boolean { return this.properties.isActive !== false; }
 
   /** true si el punto cae dentro del radio de la zona. */
   covers(latitude: number, longitude: number): boolean {
@@ -107,6 +111,7 @@ export class Zone {
     return new Zone({
       id: properties.id, name, createdAt: new Date(properties.createdAt), updatedAt: new Date(properties.updatedAt),
       coverage: coverage === null ? null : { ...coverage },
+      isActive: properties.isActive !== false,
     });
   }
 
@@ -114,6 +119,7 @@ export class Zone {
     return {
       id: this.id, name: this.name, createdAt: this.createdAt.toISOString(), updatedAt: this.updatedAt.toISOString(),
       coverage: this.coverage === null ? null : { ...this.coverage },
+      isActive: this.isActive,
     };
   }
 }

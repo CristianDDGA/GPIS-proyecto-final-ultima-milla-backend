@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { Zone } from '../../src/modules/zones/domain/zone.entity.js';
+import { InMemoryZoneRepository } from '../../src/modules/zones/infrastructure/postgres/in-memory-zone.repository.js';
+import { SetZoneActiveUseCase } from '../../src/modules/zones/application/use-cases/set-zone-active.use-case.js';
+import { ZoneInUseError, ZoneNotFoundError, ZoneValidationError } from '../../src/modules/zones/domain/zone.errors.js';
+
+const ID = '3f2b8c1e-9a4d-4c2b-8e1f-123456789abc';
+const now = new Date();
+
+test('una zona nace activa y lo expone en su JSON', () => {
+  const zone = Zone.create({ id: ID, name: 'Ambato Centro', createdAt: now, updatedAt: now });
+  assert.equal(zone.isActive, true);
+  assert.equal(zone.toJSON().isActive, true);
+  assert.equal(Zone.create({ id: ID, name: 'Ambato Centro', createdAt: now, updatedAt: now, isActive: false }).toJSON().isActive, false);
+});
+
+test('el repositorio en memoria activa, desactiva y no atiende puntos cuando está inactiva', async () => {
+  const repo = new InMemoryZoneRepository();
+  const zone = await repo.create({ name: 'Ambato Centro' });
+  await repo.setCoverage(zone.id, { latitude: -1.2491, longitude: -78.6167, radiusKm: 4 });
+  assert.equal((await repo.findCovering(-1.2491, -78.6167))?.id, zone.id);
+
+  const off = await repo.setActive(zone.id, false);
+  assert.equal(off?.isActive, false);
+  assert.equal(await repo.findCovering(-1.2491, -78.6167), null);
+  assert.deepEqual(off?.coverage, { latitude: -1.2491, longitude: -78.6167, radiusKm: 4 });
+
+  assert.equal((await repo.setActive(zone.id, true))?.isActive, true);
+  assert.equal(await repo.setActive('00000000-0000-4000-8000-000000000000', false), null);
+});
+
+test('desactivar con trabajo abierto lanza ZoneInUseError y no cambia nada', async () => {
+  let open = true;
+  const repo = new InMemoryZoneRepository(async () => open);
+  const zone = await repo.create({ name: 'Ambato Centro' });
+  await assert.rejects(() => repo.setActive(zone.id, false), ZoneInUseError);
+  assert.equal((await repo.findById(zone.id))?.isActive, true);
+  open = false;
+  assert.equal((await repo.setActive(zone.id, false))?.isActive, false);
+});
+
+test('reactivar nunca exige que no haya trabajo abierto', async () => {
+  const repo = new InMemoryZoneRepository(async () => true);
+  const zone = await repo.create({ name: 'Ambato Centro' });
+  await assert.rejects(() => repo.setActive(zone.id, false), ZoneInUseError);
+  assert.equal((await repo.setActive(zone.id, true))?.isActive, true);
+});
+
+test('el caso de uso valida identificador y valor, y responde 404 si no existe', async () => {
+  const useCase = new SetZoneActiveUseCase(new InMemoryZoneRepository());
+  await assert.rejects(() => useCase.execute('no-uuid', false), ZoneValidationError);
+  await assert.rejects(() => useCase.execute(ID, 'si'), ZoneValidationError);
+  await assert.rejects(() => useCase.execute(ID, undefined), ZoneValidationError);
+  await assert.rejects(() => useCase.execute(ID, false), ZoneNotFoundError);
+});

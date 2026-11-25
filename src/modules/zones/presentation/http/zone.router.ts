@@ -21,6 +21,10 @@ export function createZoneRouter(controller: ZoneController): Router {
     void controller.setCoverage(request, response);
   });
 
+  router.patch('/:id', (request, response) => {
+    void controller.setActive(request, response);
+  });
+
   router.get('/:id', (request, response) => {
     void controller.getById(request, response);
   });

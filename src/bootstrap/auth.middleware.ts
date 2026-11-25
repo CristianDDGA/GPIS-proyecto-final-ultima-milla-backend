@@ -73,7 +73,7 @@ function resolvePolicy(method: string, path: string): RoutePolicy | null {
 
   if (path === '/zones' || path.startsWith('/zones/')) {
     if (method === 'GET') return { roles: ['personal', 'repartidor', 'cliente'] };
-    if (method === 'POST' || method === 'PUT') return { roles: ['personal'] };
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH') return { roles: ['personal'] };
   }
 
   if (path === '/orders' || path.startsWith('/orders/')) {

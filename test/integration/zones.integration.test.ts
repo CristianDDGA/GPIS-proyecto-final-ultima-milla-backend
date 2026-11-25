@@ -8,10 +8,13 @@ describe('S1-CP-003 · Zonas: registro y validación integrada', () => {
   let app: ReturnType<typeof createApp>;
 
   beforeEach(() => {
-    zoneRepository = integrationRepositories().zoneRepository;
+    const repositories = integrationRepositories();
+    zoneRepository = repositories.zoneRepository;
     app = createApp({
       webOrigin: 'http://localhost:5173',
       zoneRepository,
+      orderRepository: repositories.orderRepository,
+      orderZoneLookup: repositories.orderZoneLookup,
     });
   });
 
@@ -159,6 +162,72 @@ describe('S1-CP-003 · Zonas: registro y validación integrada', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  describe('Activar y desactivar zonas (migración 019)', () => {
+    const create = async (name: string): Promise<string> => {
+      const response = await request(app).post('/zones').send({ name });
+      expect(response.status).toBe(201);
+      expect(response.body.isActive).toBe(true);
+      return response.body.id as string;
+    };
+    const setActive = (id: string, body: unknown) => request(app).patch(`/zones/${id}`).send(body as object);
+    const lookup = (latitude: number, longitude: number) =>
+      request(app).get('/zones/lookup').query({ latitude: String(latitude), longitude: String(longitude) });
+
+    it('desactiva y reactiva una zona sin trabajo; la lista y el detalle reflejan el estado', async () => {
+      const id = await create('Zona Estado A');
+      const off = await setActive(id, { isActive: false });
+      expect(off.status).toBe(200);
+      expect(off.body.isActive).toBe(false);
+      expect((await request(app).get(`/zones/${id}`)).body.isActive).toBe(false);
+      const listed = (await request(app).get('/zones')).body.items as Array<{ id: string; isActive: boolean }>;
+      expect(listed.find((zone) => zone.id === id)?.isActive).toBe(false);
+
+      expect((await setActive(id, { isActive: false })).status).toBe(200); // idempotente
+      const on = await setActive(id, { isActive: true });
+      expect(on.status).toBe(200);
+      expect(on.body.isActive).toBe(true);
+    });
+
+    it('una zona inactiva deja de atender puntos del mapa y conserva su cobertura al reactivarse', async () => {
+      const id = await create('Zona Estado B');
+      const coverage = { latitude: -1.2491, longitude: -78.6167, radiusKm: 4 };
+      expect((await request(app).put(`/zones/${id}/coverage`).send({ coverage })).status).toBe(200);
+      expect((await lookup(-1.2491, -78.6167)).body.zone).toMatchObject({ id });
+
+      await setActive(id, { isActive: false });
+      expect((await lookup(-1.2491, -78.6167)).body.zone).toBeNull();
+
+      const back = await setActive(id, { isActive: true });
+      expect(back.body.coverage).toEqual(coverage);
+      expect((await lookup(-1.2491, -78.6167)).body.zone).toMatchObject({ id });
+    });
+
+    it('no se puede desactivar con un pedido sin cerrar (409 ZONE_IN_USE) y no recibe pedidos nuevos al desactivarse', async () => {
+      const id = await create('Zona Estado C');
+      await request(app).put(`/zones/${id}/coverage`).send({ coverage: { latitude: -1.2491, longitude: -78.6167, radiusKm: 4 } });
+      const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' })
+        .format(new Date(Date.now() + 2 * 86_400_000));
+      const order = await request(app).post('/orders').set('Idempotency-Key', '6f1f8f0e-3c1a-4c55-9b53-6d3a2f9a1c01')
+        .send({ zoneId: id, deliveryAddress: 'Av. Cevallos y Montalvo', deliveryDate: date, deliveryTime: '10:00' });
+      expect(order.status).toBe(201);
+
+      const blocked = await setActive(id, { isActive: false });
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.code).toBe('ZONE_IN_USE');
+      expect((await request(app).get(`/zones/${id}`)).body.isActive).toBe(true);
+    });
+
+    it('valida el cuerpo, el identificador y la existencia', async () => {
+      const id = await create('Zona Estado D');
+      expect((await setActive(id, {})).status).toBe(400);
+      expect((await setActive(id, { isActive: 'no' })).status).toBe(400);
+      expect((await setActive(id, { isActive: null })).status).toBe(400);
+      expect((await setActive(id, { isActive: false, name: 'x' })).status).toBe(400);
+      expect((await setActive('no-es-uuid', { isActive: false })).status).toBe(400);
+      expect((await setActive('3f2b8c1e-9a4d-4c2b-8e1f-123456789abc', { isActive: false })).status).toBe(404);
     });
   });
 
