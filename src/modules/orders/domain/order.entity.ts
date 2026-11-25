@@ -1,3 +1,4 @@
+import { isWithinEcuador } from '../../../shared/geo.js';
 import { OrderValidationError } from './order.errors.js';
 import { validateDeliveryDate, validateDeliveryTime, validateUuid } from './order.validation.js';
 
@@ -9,6 +10,9 @@ export interface OrderDelivery {
   readonly deliveryAddress: string;
   readonly deliveryDate: string;
   readonly deliveryTime: string;
+  /** Punto del mapa del pedido; opcional, pero siempre las dos coordenadas juntas y dentro de Ecuador. */
+  readonly latitude?: number | null;
+  readonly longitude?: number | null;
 }
 
 // Registration contains no identity or timestamps supplied by the caller.
@@ -24,6 +28,8 @@ export interface OrderProperties extends OrderDelivery {
 }
 
 export interface OrderDto extends OrderDelivery {
+  readonly latitude: number | null;
+  readonly longitude: number | null;
   readonly id: string;
   readonly status: OrderStatus;
   readonly createdAt: string;
@@ -38,9 +44,25 @@ export class Order {
   get deliveryAddress(): string { return this.properties.deliveryAddress; }
   get deliveryDate(): string { return this.properties.deliveryDate; }
   get deliveryTime(): string { return this.properties.deliveryTime; }
+  get latitude(): number | null { return this.properties.latitude ?? null; }
+  get longitude(): number | null { return this.properties.longitude ?? null; }
   get status(): OrderStatus { return this.properties.status; }
   get createdAt(): Date { return new Date(this.properties.createdAt); }
   get updatedAt(): Date { return new Date(this.properties.updatedAt); }
+
+  /** Valida el pin: ambas coordenadas o ninguna, números finitos dentro de Ecuador. */
+  static validatePin(latitude: unknown, longitude: unknown): { latitude: number | null; longitude: number | null } {
+    const noLat = latitude === undefined || latitude === null;
+    const noLng = longitude === undefined || longitude === null;
+    if (noLat && noLng) return { latitude: null, longitude: null };
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      throw new OrderValidationError('La latitud y la longitud deben enviarse juntas y ser números.');
+    }
+    if (!isWithinEcuador(latitude, longitude)) {
+      throw new OrderValidationError('El punto de entrega debe estar dentro de Ecuador.');
+    }
+    return { latitude, longitude };
+  }
 
   static prepare(properties: OrderDelivery): NewOrder {
     if (typeof properties.deliveryAddress !== 'string' || properties.deliveryAddress.trim().length === 0) {
@@ -51,6 +73,7 @@ export class Order {
       deliveryAddress: properties.deliveryAddress.trim(),
       deliveryDate: validateDeliveryDate(properties.deliveryDate),
       deliveryTime: validateDeliveryTime(properties.deliveryTime),
+      ...Order.validatePin(properties.latitude, properties.longitude),
       status: 'pendiente',
     };
   }
@@ -85,6 +108,8 @@ export class Order {
       deliveryAddress: this.deliveryAddress,
       deliveryDate: this.deliveryDate,
       deliveryTime: this.deliveryTime,
+      latitude: this.latitude,
+      longitude: this.longitude,
       status: this.status,
       createdAt: this.createdAt.toISOString(),
       updatedAt: this.updatedAt.toISOString(),

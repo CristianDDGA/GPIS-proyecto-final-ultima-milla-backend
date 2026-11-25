@@ -42,3 +42,13 @@ export class OrderPersistenceUnavailableError extends Error {
     this.name = 'OrderPersistenceUnavailableError';
   }
 }
+
+/** El punto marcado no cae dentro de la cobertura de la zona elegida (HTTP 422, igual que en la tienda). */
+export class OrderOutOfCoverageError extends Error {
+  readonly code = 'ZONE_OUT_OF_COVERAGE' as const;
+
+  constructor(message: string = 'Aún no llegamos a esta dirección: el punto está fuera de la zona elegida.') {
+    super(message);
+    this.name = 'OrderOutOfCoverageError';
+  }
+}

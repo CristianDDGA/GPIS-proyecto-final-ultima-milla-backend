@@ -26,6 +26,10 @@ export const logisticaRouteSql = {
     ) AS plan`;
   },
 
+  previewPlan(command: { readonly serviceDate: string; readonly capacityLimit: number }): RouteSqlQuery {
+    return sql`SELECT logistica.preview_routes(${command.serviceDate}::date, ${command.capacityLimit}::integer) AS preview`;
+  },
+
   list(query: RouteListQuery): RouteSqlQuery {
     const date = query.serviceDate ?? null;
     const zone = query.zoneId ?? null;

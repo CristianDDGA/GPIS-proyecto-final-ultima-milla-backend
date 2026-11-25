@@ -2,7 +2,7 @@ import request from 'supertest';
 import { createApp } from '../../src/bootstrap/create-app.js';
 import type { ZoneRepository } from '../../src/modules/zones/application/ports/zone.repository.port.js';
 import type { OrderRepository } from '../../src/modules/orders/application/ports/order.repository.port.js';
-import { integrationRepositories, closeIntegrationDatabase, realDatabase, loadRepresentativeFixture, setTestZoneInactive, createCoveredZone } from './database.fixture.js';
+import { integrationRepositories, closeIntegrationDatabase, realDatabase, loadRepresentativeFixture, setTestZoneInactive, createCoveredZone, TEST_ZONE_COVERAGE } from './database.fixture.js';
 import { Zone } from '../../src/modules/zones/domain/zone.entity.js';
 
 describe('Suite de Integración API / Persistencia - Pedidos', () => {
@@ -153,6 +153,50 @@ describe('Suite de Integración API / Persistencia - Pedidos', () => {
         const listResponse = await request(app).get('/orders');
         expect(listResponse.body.items).toHaveLength(0);
       });
+    });
+  });
+
+  describe('Pin del pedido del administrador (migración 020)', () => {
+    const date = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(new Date(Date.now() + 3 * 86_400_000));
+    const body = (extra: Record<string, unknown> = {}) => ({
+      zoneId: validZone.id, deliveryAddress: 'Av. 9 de Octubre 123', deliveryDate: date(), deliveryTime: '10:30', ...extra,
+    });
+    const nearCenter = { latitude: TEST_ZONE_COVERAGE.latitude + 0.01, longitude: TEST_ZONE_COVERAGE.longitude };
+
+    it('guarda el pin dentro de la cobertura y lo devuelve al crear y al consultar', async () => {
+      const created = await request(app).post('/orders').send(body(nearCenter));
+      expect(created.status).toBe(201);
+      expect(created.body.latitude).toBeCloseTo(nearCenter.latitude, 6);
+      expect(created.body.longitude).toBeCloseTo(nearCenter.longitude, 6);
+      const fetched = await request(app).get(`/orders/${created.body.id}`);
+      expect(fetched.body.latitude).toBeCloseTo(nearCenter.latitude, 6);
+    });
+
+    it('un pedido sin pin sigue siendo válido y devuelve latitude y longitude nulos', async () => {
+      const created = await request(app).post('/orders').send(body());
+      expect(created.status).toBe(201);
+      expect(created.body.latitude).toBeNull();
+      expect(created.body.longitude).toBeNull();
+    });
+
+    it('un pin fuera de la cobertura de la zona se rechaza con 422 ZONE_OUT_OF_COVERAGE y no se crea nada', async () => {
+      const before = (await request(app).get('/orders')).body.items.length;
+      const rejected = await request(app).post('/orders').send(body({ latitude: -2.1894, longitude: -79.8891 }));
+      expect(rejected.status).toBe(422);
+      expect(rejected.body.code).toBe('ZONE_OUT_OF_COVERAGE');
+      expect((await request(app).get('/orders')).body.items.length).toBe(before);
+    });
+
+    it.each([
+      ['solo la latitud', { latitude: nearCenter.latitude }],
+      ['solo la longitud', { longitude: nearCenter.longitude }],
+      ['coordenadas como texto', { latitude: '-0.17', longitude: '-78.46' }],
+      ['un punto fuera de Ecuador', { latitude: 40.4, longitude: -3.7 }],
+    ])('rechaza con 400 %s', async (_name, extra) => {
+      const rejected = await request(app).post('/orders').send(body(extra));
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.code).toBe('VALIDATION_ERROR');
     });
   });
 

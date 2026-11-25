@@ -25,6 +25,7 @@ export const requiredFiles = [
   'database/migrations/017_single_admin.sql',
   'database/migrations/018_zone_name_unique.sql',
   'database/migrations/019_zone_active.sql',
+  'database/migrations/020_planning_preview_and_order_pin.sql',
   'database/scripts/migrate.sh',
   'database/seeds/demo.sql',
   'database/tests/integration.sql',
@@ -38,6 +39,7 @@ export const requiredFiles = [
   'database/tests/single_admin.sql',
   'database/tests/zone_name_unique.sql',
   'database/tests/zone_active.sql',
+  'database/tests/planning_preview_pin.sql',
   'database/tests/flows-race.sh',
 ];
 

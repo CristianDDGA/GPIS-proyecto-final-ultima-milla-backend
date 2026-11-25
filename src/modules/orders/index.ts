@@ -1,6 +1,7 @@
 import type { Router } from 'express';
 import type { OrderRepository } from './application/ports/order.repository.port.js';
 import type { OrderZonePort } from './application/ports/order-zone.port.js';
+import type { ZoneDeliveryGuard } from '../../shared/zone-delivery-guard.port.js';
 import { RepositoryZoneLookup } from './infrastructure/repository-zone.lookup.js';
 import { CreateOrderUseCase } from './application/use-cases/create-order.use-case.js';
 import { GetOrderUseCase } from './application/use-cases/get-order.use-case.js';
@@ -25,6 +26,8 @@ export * from './presentation/http/order.router.js';
 export interface OrdersModuleDependencies {
   readonly orderRepository: OrderRepository;
   readonly zoneRepository: OrderZonePort;
+  /** Valida que el pin de un pedido caiga dentro de su zona; sin él, el pin solo se valida como punto de Ecuador. */
+  readonly zoneGuard?: ZoneDeliveryGuard;
 }
 
 export interface OrdersModule {
@@ -41,7 +44,8 @@ export interface OrdersModule {
 export function createOrdersModule(dependencies: OrdersModuleDependencies): OrdersModule {
   const createOrder = new CreateOrderUseCase(
     dependencies.orderRepository,
-    new RepositoryZoneLookup(dependencies.zoneRepository)
+    new RepositoryZoneLookup(dependencies.zoneRepository),
+    dependencies.zoneGuard,
   );
   const getOrder = new GetOrderUseCase(dependencies.orderRepository);
   const listOrders = new ListOrdersUseCase(dependencies.orderRepository);

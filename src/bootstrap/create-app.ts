@@ -1,6 +1,6 @@
 import express, { type ErrorRequestHandler, type Router } from 'express';
 import type { ZoneRepository } from '../modules/zones/application/ports/zone.repository.port.js';
-import { createZonesModule } from '../modules/zones/index.js';
+import { createZonesModule, ZoneDeliveryGuardService } from '../modules/zones/index.js';
 import type { OrderRepository } from '../modules/orders/application/ports/order.repository.port.js';
 import { createOrdersModule } from '../modules/orders/index.js';
 import { orderZonePortFrom } from '../modules/orders/infrastructure/zone-repository.lookup.js';
@@ -125,6 +125,7 @@ export function createApp(dependencies: AppDependencies) {
     const ordersModule = createOrdersModule({
       orderRepository: dependencies.orderRepository,
       zoneRepository: zoneLookup,
+      ...(dependencies.zoneRepository ? { zoneGuard: new ZoneDeliveryGuardService(dependencies.zoneRepository) } : {}),
     });
     routers.push({ basePath: '/orders', router: ordersModule.router });
   }

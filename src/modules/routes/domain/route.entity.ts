@@ -199,6 +199,26 @@ function nonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
+/** Lo que pasaría si se generara el plan ahora (solo lectura). */
+export interface RoutePlanPreviewZone {
+  readonly zoneId: string;
+  readonly zoneName: string;
+  readonly orders: number;
+  readonly routes: number;
+  /** Tamaño de cada ruta que se crearía, en el orden en que se llenan. */
+  readonly routeSizes: readonly number[];
+}
+
+export interface RoutePlanPreview {
+  readonly serviceDate: string;
+  readonly capacityLimit: number;
+  readonly zones: readonly RoutePlanPreviewZone[];
+  readonly totalOrders: number;
+  readonly totalRoutes: number;
+  /** Repartidores habilitados y disponibles, sin ruta asignada ni en curso. */
+  readonly availableCouriers: number;
+}
+
 export const RoutePlanning = {
   /** `today` (hora de Ecuador) lo entrega la capa de aplicación: el dominio no lee el reloj. */
   prepare(input: { serviceDate: unknown; capacityLimit: unknown; idempotencyKey: unknown }, today: string): RoutePlanCommand {
@@ -206,6 +226,51 @@ export const RoutePlanning = {
       idempotencyKey: validateUuid(input.idempotencyKey, 'Idempotency-Key'),
       serviceDate: validatePlanningDate(input.serviceDate, today),
       capacityLimit: validatePlanningCapacity(input.capacityLimit),
+    };
+  },
+
+  /** Misma fecha y capacidad que el plan real (hoy a +60 días; 1 a 20), sin clave de idempotencia. */
+  preparePreview(input: { serviceDate: unknown; capacityLimit: unknown }, today: string): { serviceDate: string; capacityLimit: number } {
+    return {
+      serviceDate: validatePlanningDate(input.serviceDate, today),
+      capacityLimit: validatePlanningCapacity(input.capacityLimit),
+    };
+  },
+
+  /** Comprueba la forma y la coherencia de lo que devolvió la base antes de entregarlo. */
+  acceptPreview(command: { serviceDate: string; capacityLimit: number }, raw: unknown): RoutePlanPreview {
+    integrity(typeof raw === 'object' && raw !== null && !Array.isArray(raw), 'La vista previa no es un objeto.');
+    const row = raw as Record<string, unknown>;
+    integrity(row['date'] === command.serviceDate, 'La vista previa devolvió un día distinto del solicitado.');
+    integrity(row['capacity'] === command.capacityLimit, 'La vista previa devolvió otra capacidad.');
+    integrity(Array.isArray(row['zones']), 'La vista previa no devolvió la lista de zonas.');
+    const zones = (row['zones'] as unknown[]).map((item) => {
+      integrity(typeof item === 'object' && item !== null, 'Una zona de la vista previa es inválida.');
+      const zone = item as Record<string, unknown>;
+      integrity(typeof zone['zoneId'] === 'string' && typeof zone['zoneName'] === 'string', 'Una zona de la vista previa no tiene identidad.');
+      const orders = zone['orders'];
+      const routes = zone['routes'];
+      integrity(nonNegativeInteger(orders) && nonNegativeInteger(routes), 'Una zona de la vista previa tiene conteos inválidos.');
+      const sizes = zone['routeSizes'];
+      integrity(Array.isArray(sizes) && sizes.length === routes, 'Los tamaños de ruta no coinciden con el número de rutas.');
+      const routeSizes = (sizes as unknown[]).map((size) => {
+        integrity(Number.isInteger(size) && (size as number) >= 1 && (size as number) <= command.capacityLimit, 'Una ruta de la vista previa supera la capacidad.');
+        return size as number;
+      });
+      integrity(routeSizes.reduce((sum, size) => sum + size, 0) === orders, 'Los tamaños de ruta no suman los pedidos de la zona.');
+      return { zoneId: validateUuid(zone['zoneId'], 'zoneId'), zoneName: zone['zoneName'] as string, orders: orders as number, routes: routes as number, routeSizes };
+    });
+    const totalOrders = zones.reduce((sum, zone) => sum + zone.orders, 0);
+    const totalRoutes = zones.reduce((sum, zone) => sum + zone.routes, 0);
+    integrity(row['totalOrders'] === totalOrders && row['totalRoutes'] === totalRoutes, 'Los totales de la vista previa no coinciden con las zonas.');
+    integrity(nonNegativeInteger(row['availableCouriers']), 'El número de repartidores disponibles es inválido.');
+    return {
+      serviceDate: command.serviceDate,
+      capacityLimit: command.capacityLimit,
+      zones,
+      totalOrders,
+      totalRoutes,
+      availableCouriers: row['availableCouriers'] as number,
     };
   },
 

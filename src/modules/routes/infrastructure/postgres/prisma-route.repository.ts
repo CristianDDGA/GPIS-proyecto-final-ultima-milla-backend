@@ -3,7 +3,7 @@ import type { RouteListQuery, RoutePlanCommand, RouteSummary } from '../../domai
 import { RoutePersistenceUnavailableError } from '../../domain/route.errors.js';
 import type { RouteDetailRecord, RouteRepository } from '../../application/ports/route.repository.port.js';
 import { logisticaRouteSql, type RouteSqlQuery } from './route-sql.js';
-import { mapPlanResult, mapRouteStops, mapRouteSummary } from './route.mapper.js';
+import { mapPlanPreview, mapPlanResult, mapRouteStops, mapRouteSummary } from './route.mapper.js';
 import { throwRoutePersistenceError } from './route-persistence.errors.js';
 
 export class PrismaRouteRepository implements RouteRepository {
@@ -15,6 +15,16 @@ export class PrismaRouteRepository implements RouteRepository {
       const rows = await this.execute(logisticaRouteSql.generatePlan(command));
       if (rows.length !== 1) throw new RoutePersistenceUnavailableError();
       return mapPlanResult(rows[0]);
+    } catch (error: unknown) {
+      throwRoutePersistenceError(error);
+    }
+  }
+
+  async previewPlan(command: { readonly serviceDate: string; readonly capacityLimit: number }): Promise<unknown> {
+    try {
+      const rows = await this.execute(logisticaRouteSql.previewPlan(command));
+      if (rows.length !== 1) throw new RoutePersistenceUnavailableError();
+      return mapPlanPreview(rows[0]);
     } catch (error: unknown) {
       throwRoutePersistenceError(error);
     }

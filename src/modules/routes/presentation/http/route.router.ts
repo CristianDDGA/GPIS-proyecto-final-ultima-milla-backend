@@ -9,6 +9,9 @@ export function createRoutePlanRouter(controller: RouteController): Router {
   router.post('/', (request, response) => {
     void controller.plan(request, response);
   });
+  router.get('/preview', (request, response) => {
+    void controller.preview(request, response);
+  });
   return router;
 }
 
