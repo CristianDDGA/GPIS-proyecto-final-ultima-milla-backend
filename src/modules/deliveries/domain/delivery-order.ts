@@ -208,10 +208,11 @@ export function assertRouteCompletable(
       'La ruta no tiene paradas activas para completar.',
     );
   }
-  if (stopOrderStatuses.some(status => status !== 'entregado')) {
+  // Una parada con entrega fallida ya está cerrada (el cliente la reprograma); igual que en complete_route (011).
+  if (stopOrderStatuses.some(status => status !== 'entregado' && status !== 'entrega_fallida')) {
     throw new DeliveryError(
       'DATA_CONFLICT',
-      'Todos los pedidos de la ruta deben estar entregados antes de completarla.',
+      'Todos los pedidos de la ruta deben estar entregados o con entrega fallida antes de completarla.',
     );
   }
 }
