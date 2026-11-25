@@ -87,7 +87,7 @@ const zip = buildZip(entries);
 
 const previous = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const manifest = {
-  source: 'db-proyecto auth + revocation + email verification + user activation + courier applications + store and flows packages (010_store.sql, 011_flows.sql, 012_consistency_definer.sql, 013_coordinates.sql, 014_google_login.sql, 015_profile_zone_coverage.sql, 016_route_optimization.sql, 017_single_admin.sql, 018_zone_name_unique.sql, 019_zone_active.sql)',
+  source: 'db-proyecto auth + revocation + email verification + user activation + courier applications + store and flows packages (010_store.sql, 011_flows.sql, 012_consistency_definer.sql, 013_coordinates.sql, 014_google_login.sql, 015_profile_zone_coverage.sql, 016_route_optimization.sql, 017_single_admin.sql, 018_zone_name_unique.sql, 019_zone_active.sql, 020_planning_preview_and_order_pin.sql)',
   sha256: sha256(zip),
   files,
   postgresImage: previous.postgresImage,

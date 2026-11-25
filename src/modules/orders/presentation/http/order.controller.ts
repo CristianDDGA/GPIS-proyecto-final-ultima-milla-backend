@@ -5,6 +5,7 @@ import type { ListOrdersUseCase } from '../../application/use-cases/list-orders.
 import {
   OrderConflictError,
   OrderNotFoundError,
+  OrderOutOfCoverageError,
   OrderPersistenceUnavailableError,
   OrderValidationError,
   ZoneNotFoundError,
@@ -24,6 +25,15 @@ function stringField(value: unknown, field: string): string {
   return value;
 }
 
+/** Número opcional (el pin): ausente o null es "sin pin"; cualquier otro tipo es un error del cuerpo. */
+function optionalNumberField(value: unknown, field: string): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'number') {
+    throw new OrderValidationError(`El campo ${field} debe ser un número.`);
+  }
+  return value;
+}
+
 export class OrderController {
   constructor(
     private readonly createOrderUseCase: CreateOrderUseCase,
@@ -39,6 +49,8 @@ export class OrderController {
         deliveryAddress: stringField(body['deliveryAddress'], 'deliveryAddress'),
         deliveryDate: stringField(body['deliveryDate'], 'deliveryDate'),
         deliveryTime: stringField(body['deliveryTime'], 'deliveryTime'),
+        latitude: optionalNumberField(body['latitude'], 'latitude'),
+        longitude: optionalNumberField(body['longitude'], 'longitude'),
       });
       response.status(201).json(order.toJSON());
     } catch (error: unknown) {
@@ -80,6 +92,8 @@ export class OrderController {
       status = 404;
     } else if (error instanceof OrderConflictError) {
       status = 409;
+    } else if (error instanceof OrderOutOfCoverageError) {
+      status = 422;
     } else if (error instanceof OrderPersistenceUnavailableError) {
       status = 503;
     }

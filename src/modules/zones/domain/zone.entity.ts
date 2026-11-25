@@ -1,3 +1,4 @@
+import { isWithinEcuador } from '../../../shared/geo.js';
 import { ZoneValidationError } from './zone.errors.js';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -33,10 +34,7 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-/** Mismo rectángulo que valid_coordinates (013): Ecuador continental y Galápagos. */
-export function isWithinEcuador(latitude: number, longitude: number): boolean {
-  return latitude >= -5.1 && latitude <= 1.5 && longitude >= -92.5 && longitude <= -75.0;
-}
+export { isWithinEcuador };
 
 /** Valida un punto del mapa; lanza ZoneValidationError si no es un par de números dentro de Ecuador. */
 export function validatePoint(latitude: unknown, longitude: unknown): { latitude: number; longitude: number } {

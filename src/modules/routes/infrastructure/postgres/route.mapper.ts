@@ -59,6 +59,12 @@ export function mapRouteStops(value: unknown): RouteStopRecord[] {
 }
 
 // generate_routes returns jsonb {date, routeIds}; date becomes serviceDate at this boundary.
+// preview_routes returns jsonb with the zones and totals; the domain validates its coherence.
+export function mapPlanPreview(value: unknown): unknown {
+  return parseJson(asRow(value)['preview']);
+}
+
+// generate_routes returns jsonb {date, routeIds}; date becomes serviceDate at this boundary.
 export function mapPlanResult(value: unknown): { serviceDate: unknown; routeIds: unknown } {
   const plan = asRow(parseJson(asRow(value)['plan']));
   return { serviceDate: plan['date'], routeIds: plan['routeIds'] };

@@ -127,6 +127,49 @@ describeReal('Sprint 02 · Routes · S2-CP-001 agrupación por zona/fecha y capa
     expect(otherDayList.body.items).toEqual([]);
   });
 
+  it('la vista previa anuncia las rutas por zona, no crea nada y coincide con el plan real', async () => {
+    const scenario = await prepareScenario();
+    const routesBefore = await countRoutes();
+
+    const preview = await request(app).get('/route-plans/preview').query({ serviceDate: planDay, capacityLimit: 4 });
+    expect(preview.status).toBe(200);
+    expect(preview.body).toMatchObject({ serviceDate: planDay, capacityLimit: 4, totalOrders: 7, totalRoutes: 3 });
+    const byZone = new Map((preview.body.zones as Array<{ zoneId: string; orders: number; routes: number; routeSizes: number[] }>).map((zone) => [zone.zoneId, zone]));
+    expect(byZone.get(scenario.zoneA)).toMatchObject({ orders: 5, routes: 2, routeSizes: [4, 1] });
+    expect(byZone.get(scenario.zoneB)).toMatchObject({ orders: 2, routes: 1, routeSizes: [2] });
+    expect(typeof preview.body.availableCouriers).toBe('number');
+    expect(await countRoutes()).toBe(routesBefore);
+
+    const planned = await plan(planDay, 4, randomUUID());
+    expect(planned.status).toBe(200);
+    expect(planned.body.routeIds).toHaveLength(preview.body.totalRoutes);
+    const sizes = (await Promise.all((planned.body.routeIds as string[]).map(detail)))
+      .filter((route) => route.zoneId === scenario.zoneA).map((route) => route.occupiedSlots).sort();
+    expect(sizes).toEqual([...byZone.get(scenario.zoneA)!.routeSizes].sort());
+  });
+
+  it('la vista previa aplica los mismos límites que el plan: capacidad 1-20 y fecha de hoy a +60 días', async () => {
+    for (const query of [
+      { serviceDate: planDay, capacityLimit: 21 },
+      { serviceDate: planDay, capacityLimit: 0 },
+      { serviceDate: planDay, capacityLimit: 'abc' },
+      { serviceDate: planDay },
+      { serviceDate: guayaquilDate(-1), capacityLimit: 4 },
+      { serviceDate: guayaquilDate(61), capacityLimit: 4 },
+      { capacityLimit: 4 },
+    ]) {
+      const response = await request(app).get('/route-plans/preview').query(query);
+      expect(response.status).toBe(400);
+      expectErrorEnvelope(response.body, 'VALIDATION_ERROR');
+    }
+  });
+
+  it('sin pedidos pendientes la vista previa queda vacía', async () => {
+    const response = await request(app).get('/route-plans/preview').query({ serviceDate: guayaquilDate(5), capacityLimit: 4 });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ zones: [], totalOrders: 0, totalRoutes: 0 });
+  });
+
   it('misma clave conserva el resultado y una clave nueva sin pendientes no crea ni duplica rutas', async () => {
     await prepareScenario();
     const key = randomUUID();

@@ -1,14 +1,25 @@
 import { getRequestActor } from '../../../../bootstrap/auth.middleware.js';
+import { OrderValidationError } from '../../domain/order.errors.js';
 import { orderSql, type AuthorizedOrderSql } from './order-sql.port.js';
 
 export const logisticaOrderSql: AuthorizedOrderSql = {
   create(order) {
     const actor = getRequestActor();
     if (actor?.role === 'cliente') {
+      if (order.latitude != null || order.longitude != null) {
+        throw new OrderValidationError('Los clientes registran pedidos con su ubicación desde la tienda.');
+      }
       return orderSql`SELECT logistica.create_order_for_customer(
         ${order.zoneId}::uuid, ${order.deliveryAddress}::text,
         ${order.deliveryDate}::date, ${order.deliveryTime}::time,
         NULL::text, NULL::text, NULL::text, ${actor.sub}::uuid
+      ) AS id`;
+    }
+    if (order.latitude != null && order.longitude != null) {
+      return orderSql`SELECT logistica.create_order_with_pin(
+        ${order.zoneId}::uuid, ${order.deliveryAddress}::text,
+        ${order.deliveryDate}::date, ${order.deliveryTime}::time,
+        ${order.latitude}::double precision, ${order.longitude}::double precision
       ) AS id`;
     }
     return orderSql`SELECT logistica.create_order(
@@ -28,14 +39,16 @@ export const logisticaOrderSql: AuthorizedOrderSql = {
     if (id !== null && date === null && zone === null && customerUserId === null && courierId === null) {
       return orderSql`SELECT id, zone_id AS "zoneId", delivery_address AS "deliveryAddress",
         to_char(delivery_date, 'YYYY-MM-DD') AS "deliveryDate",
-        left(delivery_time::text, 5) AS "deliveryTime", status,
+        left(delivery_time::text, 5) AS "deliveryTime",
+        delivery_latitude AS "latitude", delivery_longitude AS "longitude", status,
         created_at AS "createdAt", updated_at AS "updatedAt"
         FROM logistica.orders
         WHERE id = ${id}::uuid`;
     }
     return orderSql`SELECT id, zone_id AS "zoneId", delivery_address AS "deliveryAddress",
       to_char(delivery_date, 'YYYY-MM-DD') AS "deliveryDate",
-      left(delivery_time::text, 5) AS "deliveryTime", status,
+      left(delivery_time::text, 5) AS "deliveryTime",
+        delivery_latitude AS "latitude", delivery_longitude AS "longitude", status,
       created_at AS "createdAt", updated_at AS "updatedAt"
       FROM logistica.orders
       WHERE (${id}::uuid IS NULL OR id = ${id}::uuid)

@@ -7,6 +7,8 @@ export interface PrismaOrderRecord {
   readonly deliveryAddress: string;
   readonly deliveryDate: string;
   readonly deliveryTime: string;
+  readonly latitude?: number | null;
+  readonly longitude?: number | null;
   readonly status: string;
   readonly createdAt: Date | string;
   readonly updatedAt: Date | string;
@@ -30,6 +32,8 @@ export function mapOrderRecord(value: unknown): Order {
       deliveryAddress: record.deliveryAddress,
       deliveryDate: record.deliveryDate,
       deliveryTime: record.deliveryTime,
+      latitude: record.latitude ?? null,
+      longitude: record.longitude ?? null,
       status: record.status as OrderStatus,
       createdAt: timestamp(record.createdAt),
       updatedAt: timestamp(record.updatedAt),

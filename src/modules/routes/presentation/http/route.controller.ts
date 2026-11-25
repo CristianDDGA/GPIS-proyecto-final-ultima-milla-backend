@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import type { PlanRoutesUseCase } from '../../application/use-cases/plan-routes.use-case.js';
+import type { PreviewRoutesUseCase } from '../../application/use-cases/preview-routes.use-case.js';
 import type { ListRoutesUseCase } from '../../application/use-cases/list-routes.use-case.js';
 import type { GetRouteUseCase } from '../../application/use-cases/get-route.use-case.js';
 import {
@@ -34,7 +35,8 @@ export class RouteController {
   constructor(
     private readonly planRoutesUseCase: PlanRoutesUseCase,
     private readonly listRoutesUseCase: ListRoutesUseCase,
-    private readonly getRouteUseCase: GetRouteUseCase
+    private readonly getRouteUseCase: GetRouteUseCase,
+    private readonly previewRoutesUseCase?: PreviewRoutesUseCase,
   ) {}
 
   async plan(request: Request, response: Response): Promise<void> {
@@ -46,6 +48,22 @@ export class RouteController {
         idempotencyKey: request.get('Idempotency-Key'),
       });
       response.status(200).json({ serviceDate: result.serviceDate, routeIds: result.routeIds });
+    } catch (error: unknown) {
+      this.handleError(error, response);
+    }
+  }
+
+  /** GET /route-plans/preview?serviceDate=YYYY-MM-DD&capacityLimit=N: lo que generaría el plan, sin crear nada. */
+  async preview(request: Request, response: Response): Promise<void> {
+    try {
+      if (this.previewRoutesUseCase === undefined) throw new RoutePersistenceUnavailableError();
+      const serviceDate = optionalQueryText(request.query['serviceDate'], 'serviceDate');
+      const capacity = optionalQueryText(request.query['capacityLimit'], 'capacityLimit');
+      const preview = await this.previewRoutesUseCase.execute({
+        serviceDate,
+        capacityLimit: capacity === undefined || capacity.trim() === '' ? undefined : Number(capacity),
+      });
+      response.status(200).json(preview);
     } catch (error: unknown) {
       this.handleError(error, response);
     }
