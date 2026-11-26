@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+cypress
+mobile
+.git
+.github
+.env
+.env.*
+docs

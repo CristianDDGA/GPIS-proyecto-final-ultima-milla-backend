@@ -1,0 +1,20 @@
+# API de Millast. Contexto de construcción: la carpeta del repositorio del backend.
+# Node 24.22.2 como exige "engines" del package.json.
+FROM node:24.22.2-alpine AS build
+WORKDIR /app
+# Primero lo mínimo para instalar (aprovecha la caché): el postinstall ejecuta "prisma generate".
+COPY package.json package-lock.json prisma.config.ts ./
+COPY prisma ./prisma
+RUN npm ci --include=dev
+COPY . .
+RUN npm run build
+
+FROM node:24.22.2-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app /app
+# Carpeta de imágenes (solicitudes de conductor y productos); el volumen "uploads" se monta aquí.
+RUN mkdir -p /data/courier /data/products && chown -R node:node /data
+USER node
+EXPOSE 3000
+CMD ["node", "dist/bootstrap/server.js"]

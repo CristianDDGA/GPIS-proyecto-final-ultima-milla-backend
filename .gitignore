@@ -13,3 +13,7 @@ reports/
 .sonar/
 
 /storage/
+
+# Despliegue local con Docker: paquete de base extraido y secretos generados
+deploy/local/db-package/
+deploy/local/.env
